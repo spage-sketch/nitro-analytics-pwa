@@ -1,10 +1,10 @@
 // Prije: const CACHE_STATIC_KEY = 'nitro-pwa-static-v1';
-const CACHE_STATIC_KEY = 'nitro-pwa-static-v3';
-const CACHE_CDN_KEY = 'nitro-pwa-cdn-v3';
+const CACHE_STATIC_KEY = 'nitro-pwa-static-v4';
+const CACHE_CDN_KEY = 'nitro-pwa-cdn-v4';
 
 // Statika za keširanje (HTML, SW, Manifest)
 const staticAssets = [
-  '/nitro-analytics-pwa/nitro_analytics.html',
+  '/nitro-analytics-pwa/index.html',
   '/nitro-analytics-pwa/sw.js',
   '/nitro-analytics-pwa/manifest.json',
 ];
@@ -146,3 +146,4 @@ self.addEventListener('controllerchange', () => {
   console.log('[SW] Novi Service Worker preuzeo kontrolu. Aplikacija se može osvježiti za nove značajke.');
 
 });
+
