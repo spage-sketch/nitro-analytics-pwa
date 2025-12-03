@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="hr">
+<head>
+<meta charset="utf-8" />
+<!-- PWA Meta Tags -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICAgIDxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSIjMDUwNTA1Ii8+CiAgICA8cGF0aCBkPSJNMjU2IDEwMCBMNDAwIDQxMiBIMTEyIFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzAwZmY4OCIgc3Ryb2tlLXdpZHRoPSIyMCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBmaWx0ZXI9InVybCgjbml0cm8tZ2xvdykiLz4KICAgIDxkZWZzPgogICAgICAgIDxmaWx0ZXIgaWQ9Im5pdHJvLWdsb3ciIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJTZXJpZkFsdHMiIHR5cGU9Im1hdHJpeCIgdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgLjA3IDAgMCAwIDAgLjI4NTAgMCAwIDAgMSAwIiByZXN1bHQ9Im1hbmctZmxvcmEtdmVyZCIvPgogICAgICAgICAgICA8ZmVPZmZzZXQgZHk9IjAiIGluPSJtYW5nLWZsb3JhLXZlcmQiIHJlc3VsdD0idG9kby0yMS05MCIvPgogICAgICAgICAgICA8ZmVGdXp6eUNhbGN1bGF0ZSBpbiJ0b2RvLTIxLTkwIiByZXN1bHQ9InR1cm5lZCIgcmFkaXVzPSIxMCIvPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJ0dXJuZWQiIHR5cGU9Im1hdHJpeCIgdmFsdWVzPSIxIDAgMCAwIDAgIDAgMSAwIDAgMCAgMCAwIDEgMCAwICAwIDAgMCAxIDAiIHJlc3VsdD0ibml0cm8tbGFiZWwiLz4KICAgICAgICAgICAgPGZlQmx1ciBpbiJuaXRyby1sYWJlbCIgc3RkRGV2aWF0aW9uPSIxMiIvPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJibHVyIiB0eXBlPSJtYXRyaXgiIHZhbHVlcz0iMSAwIDAgMCAwICAwIDIgMCAwIDAgIDAgMiAxIDAgMCAgMCAwIDAgMjAgLTEwIi8+CiAgICAgICAgICAgIDxmZU1lcmdlPgogICAgICAgICAgICAgICAgPGZlTWVyZ2VOb2RlIGluPSJmaWx0ZXIgb3JpZ2luYWwiLz4KICAgICAgICAgICAgICAgIDxmZU1lcmdlTm9kZSBpbiJtYW5nLWZsb3JhLXZlcmQiLz4KICAgICAgICAgICAgPC9mZU1lcmdlPgogICAgICAgIDwvZmlsdGVyPgogICAgPC9kZWZzPgo8L3N2Zz4=">
+<link rel="manifest" href="./manifest.json">
+<base href="./">
+<title>NITRO ANALYTICS V10 PWA</title>
+
+<!-- Chart.js + PapaParse -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+<style>
+:root{
+  --bg:#050505;--card:#0f1112;--text:#e6eef0;--muted:#9aa6aa;
+  --accent:#00ff88;--blue:#00d9ff;--red:#ff4477;--gold:#ffd66b;
+  --line:#222;--shadow:rgba(0,255,136,0.18);
+}
+body{margin:0;padding:24px;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;min-height:100vh;}
+body.light{--bg:#f6f7f8;--card:#ffffff;--text:#111218;--muted:#6b7280;--accent:#007b4f;--blue:#006b8f;--line:#e6eef0;--shadow:rgba(0,0,0,0.06)}
+.container{max-width:1200px;margin:0 auto}
+.header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px}
+.title{font-weight:700;font-size:1.6rem;display:flex;flex-direction:column}
+.title small{font-size:0.85rem;color:var(--muted)}
+.themeBtn{background:transparent;border:1px solid var(--line);padding:8px 12px;border-radius:10px;cursor:pointer;color:var(--text)}
+.themeBtn:hover{box-shadow:0 6px 24px var(--shadow);transform:translateY(-2px)}
+/* drop zone */
+#drop-zone{border:3px dashed rgba(255,255,255,0.04);padding:42px;border-radius:14px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));cursor:pointer;text-align:center;transition:all .25s;max-width:720px;margin:0 auto}
+#drop-zone.highlight{background:linear-gradient(180deg, rgba(0,255,136,0.06), rgba(0,217,255,0.02));box-shadow:0 0 60px var(--shadow);transform:translateY(-4px);border-color:var(--accent)}
+#drop-zone h2{margin:0;color:var(--accent);font-size:1.4rem}
+#drop-zone p{margin:6px 0;color:var(--muted)}
+
+/* layout */
+.grid-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,0.55);transition:transform .18s, box-shadow .18s;backdrop-filter: blur(6px)}
+.card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(0,0,0,0.6), 0 0 80px var(--shadow)}
+.card-header{font-weight:700;color:var(--blue);border-left:3px solid var(--accent);padding-left:10px;margin-bottom:12px}
+.big-num{font-size:2.6rem;font-weight:800;color:var(--accent);text-align:center}
+.label{font-size:0.78rem;color:var(--muted);text-transform:uppercase;text-align:center;margin-top:6px}
+.grid-full{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:22px}
+
+/* charts */
+canvas{width:100% !important;height:300px !important;display:block}
+
+/* controls */
+.btn{background:var(--accent);color:#021;padding:10px 18px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
+.btn.secondary{background:transparent;border:1px solid var(--line);color:var(--text)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+
+/* badges & misc */
+.badge{background:var(--blue);color:var(--bg);display:inline-block;padding:6px 10px;border-radius:8px;margin:6px;font-weight:700}
+.no-data{color:var(--muted);padding:28px;text-align:center;display:flex;justify-content:center;align-items:center}
+.progress{width:100%;height:12px;background:rgba(255,255,255,0.03);border-radius:8px;overflow:hidden}
+.progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--blue));transition:width .4s}
+.footer{margin-top:28px;color:var(--muted);font-size:0.9rem;text-align:center}
+.controls-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+@media (max-width:720px){
+  .big-num{font-size:1.8rem}
+  canvas{height:220px !important}
+}
+</style>
+</head>
+<body>
+<!-- PWA Status Indicator -->
+<div id="status-indicator" style="position:fixed;top:10px;right:10px;font-size:0.8rem;padding:4px 8px;border-radius:6px;font-weight:700;z-index:100"></div>
+
+<div class="container">
+  <div class="header">
+    <div class="title">
+      <span>NITRO ANALYTICS V10 PWA</span>
+      <small>Offline-ready MAL Analyzer — drag & drop CSV / XML</small>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button id="themeToggle" class="themeBtn" title="Toggle theme">💡 Theme</button>
+      <a id="downloadZipBtn" class="themeBtn" style="display:none">📦 Download Snapshot</a>
+    </div>
+  </div>
+
+  <!-- drop zone -->
+  <div id="drop-zone"><h2>DROP MAL XML / CSV</h2><p>ili klikni za odabir datoteke</p><input id="fileInput" type="file" accept=".xml,.csv" style="display:none"></div>
+
+  <!-- OFFLINE DATA PROMPT -->
+  <div id="offline-data-prompt" class="card" style="text-align:center;margin-top:18px;padding:30px;display:none;">
+      <h2 style="font-size:1.5rem;color:var(--red);margin-bottom:10px;">🔌 OFFLINE MODE</h2>
+      <p style="color:var(--muted);margin-bottom:15px;">Mreža nije dostupna. Učitaj posljednju analizu za offline pregled.</p>
+      <button id="loadLastAnalysisBtn" class="btn">UČITAJ POSLJEDNJU ANALIZU</button>
+  </div>
+
+  <!-- dashboard (hidden until data) -->
+  <div id="dashboard" class="hidden">
+    <!-- OFFLINE WARNING INSIDE DASHBOARD -->
+    <div id="offline-warning" class="card" style="background:var(--red);border-color:var(--red);color:#fff;margin-top:18px;padding:12px;display:none;text-align:center;font-weight:700">
+        ⚠️ OFFLINE: Shadow Fetch (AniList) je preskočen.
+    </div>
+
+    <div id="personality-box" class="card" style="margin-top:18px;text-align:center">
+      <div id="personality-title" style="font-size:1.25rem;font-weight:800">Analiza u tijeku...</div>
+      <div id="personality-desc" style="color:var(--muted);margin-top:6px">Učitavam tvoj anime arhetip</div>
+      <div id="personality-comment" style="margin-top:12px;color:var(--accent);font-weight:700">"..."</div>
+    </div>
+
+    <div class="grid-kpi">
+      <div class="card"><div class="big-num" id="completed">0</div><div class="label">Završeno</div></div>
+      <div class="card"><div class="big-num" id="mean">0.00</div><div class="label">Prosjek</div></div>
+      <div class="card"><div class="big-num" id="eps">0</div><div class="label">Epizoda</div></div>
+      <div class="card"><div class="big-num" id="days">0</div><div class="label">Dana gledanja</div></div>
+      <div class="card"><div class="big-num" id="tens" style="color:var(--gold)">0</div><div class="label">10/10</div></div>
+    </div>
+
+    <div class="grid-full">
+      <div class="card">
+        <div class="card-header">STATUS DISTRIBUCIJA</div>
+        <canvas id="statusChart"></canvas>
+      </div>
+
+      <div class="card">
+        <div class="card-header">OCJENE vs ANILIST PROSJEK</div>
+        <canvas id="vsChart"></canvas>
+        <div id="vsError" class="no-data">Pokreni Shadow Fetch za usporedbu</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">ZAVRŠENO PO GODINAMA</div>
+        <canvas id="timelineChart"></canvas>
+      </div>
+    </div>
+
+    <div class="grid-full" style="margin-top:18px">
+      <div class="card">
+        <div class="card-header">DUBINSKA ANALIZA</div>
+        <div style="margin-top:8px">
+          <div class="insight-item"><div style="font-weight:700">Tvoj Arhetip:</div><div id="insight-archetype" style="margin-top:6px;color:var(--muted)">-</div></div>
+          <div class="insight-item" style="margin-top:10px"><div style="font-weight:700">Najduži Maraton:</div><div id="insight-marathon" style="margin-top:6px;color:var(--muted)">-</div></div>
+          <div class="insight-item" style="margin-top:10px"><div style="font-weight:700">Najkontroverznija 10/10:</div><div id="insight-controversial" style="margin-top:6px;color:var(--muted)">-</div></div>
+          <div class="insight-item" style="margin-top:10px"><div style="font-weight:700">Najgori uradak:</div><div id="insight-gap" style="margin-top:6px;color:var(--muted)">-</div></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">TOP 10 ŽANROVA</div>
+        <canvas id="genreChart"></canvas>
+        <div id="genrePlaceholder" class="no-data">Pokreni Shadow Fetch za žanrove</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">COSINE PREPORUKE</div>
+        <div id="recsContent" class="no-data">Pokreni Shadow Fetch za preporuke</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">ACHIEVEMENTI</div>
+        <div id="achievementsContent" style="text-align:center;padding:12px">Pokreni Shadow Fetch za badgeove</div>
+      </div>
+    </div>
+
+    <div style="margin-top:18px" class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div class="controls-row">
+          <button id="shadowBtn" class="btn">SHADOW FETCH (AniList)</button>
+          <button id="exportBtn" class="btn secondary">EXPORT JSON</button>
+          <button id="infoBtn" class="btn secondary">INFOGRAFIKA</button>
+          <button id="resetBtn" class="btn secondary">NOVA ANALIZA</button>
+        </div>
+        <div style="min-width:260px">
+          <div id="statusMsg" style="color:var(--muted)">Učitaj svoj MAL export da započneš.</div>
+        </div>
+      </div>
+
+      <div style="margin-top:14px">
+        <div class="progress"><div id="bar" class="progress-bar"></div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="footer">Sav sadržaj ostaje lokalno u tvojem pregledniku. Za full enrichment koristi Shadow Fetch (AniList GraphQL).</div>
+</div>
+
+<script>
+// --- Chart global defaults (stable + nice colors)
+if (window.Chart) {
+  Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e6eef0';
+  Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
+  Chart.defaults.font.family = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial';
+}
+
+// state
+const LAST_ANALYSIS_KEY = 'nitro_last_enriched_data';
+let isOnline = navigator.onLine;
+
+let data = [], enriched = [];
+let statusChartInstance, vsChartInstance, timelineChartInstance, genreChartInstance;
+
+// helpers
+const el = id => document.getElementById(id);
+const setStatus = (html, isError=false) => el('statusMsg').innerHTML = isError ? `<span style="color:var(--red);">${html}</span>` : html;
+const formatNum = v => (v==null || isNaN(v)) ? '—' : v;
+
+// PWA: OFFLINE POHRANA (LocalStorage)
+function saveAnalysis(data) {
+    try {
+        localStorage.setItem(LAST_ANALYSIS_KEY, JSON.stringify(data));
+        console.log('PWA: Analiza uspješno spremljena za offline rad.');
+    } catch (e) {
+        console.error('PWA: Greška pri spremanju u LocalStorage:', e);
+    }
+}
+function loadAnalysis() {
+    try {
+        const json = localStorage.getItem(LAST_ANALYSIS_KEY);
+        if (json) return JSON.parse(json);
+    } catch (e) {
+        console.error('PWA: Greška pri učitavanju iz LocalStorage-a:', e);
+        localStorage.removeItem(LAST_ANALYSIS_KEY);
+    }
+    return null;
+}
+function showOfflinePrompt() {
+    el('drop-zone').classList.add('hidden');
+    el('dashboard').classList.add('hidden');
+    el('offline-data-prompt').style.display = 'block';
+}
+
+// PWA: OFFLINE INDIKATOR
+function updateOnlineStatus() {
+    isOnline = navigator.onLine;
+    const indicator = el('status-indicator');
+    indicator.textContent = isOnline ? 'ONLINE 🌐' : 'OFFLINE 🔌';
+    indicator.style.backgroundColor = isOnline ? 'var(--accent)' : 'var(--red)';
+    indicator.style.color = isOnline ? 'var(--bg)' : '#fff';
+    el('offline-warning').style.display = isOnline ? 'none' : 'block';
+    el('shadowBtn').disabled = !isOnline;
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+
+// Theme toggle (persist)
+const themeBtn = el('themeToggle');
+(function initTheme(){
+  const t = localStorage.getItem('nitro_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark');
+  if (t === 'light') document.body.classList.add('light');
+  themeBtn.textContent = document.body.classList.contains('light') ? '🌙 Dark' : '💡 Light';
+})();
+themeBtn.onclick = () => {
+  document.body.classList.toggle('light');
+  const isLight = document.body.classList.contains('light');
+  localStorage.setItem('nitro_theme', isLight ? 'light' : 'dark');
+  themeBtn.textContent = isLight ? '🌙 Dark' : '💡 Light';
+};
+
+// drop zone wiring
+const dropZone = el('drop-zone');
+const fileInput = el('fileInput');
+dropZone.onclick = () => fileInput.click();
+fileInput.onchange = e => processFile(e.target.files[0]);
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('highlight');});
+dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('highlight');});
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('highlight'); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); });
+
+// parse file
+function processFile(file){
+  if(!file) return;
+  el('offline-data-prompt').style.display = 'none';
+  setStatus(`Učitavam: ${file.name}...`);
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try{
+      if(file.name.toLowerCase().endsWith('.xml')) parseXML(ev.target.result);
+      else Papa.parse(ev.target.result, {header:true, skipEmptyLines:true, complete: r => { data = r.data.map(normalizeRow); go(data); }});
+    } catch(err){
+      console.error(err); setStatus('Greška pri parsiranju: ' + err.message, true);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function parseXML(text){
+  const xml = new DOMParser().parseFromString(text, 'text/xml');
+  data = Array.from(xml.querySelectorAll('anime')).map(a => ({
+    title: a.querySelector('series_title')?.textContent || 'Unknown',
+    mal_id: parseInt(a.querySelector('series_animedb_id')?.textContent || 0) || null,
+    score: parseInt(a.querySelector('my_score')?.textContent) || 0,
+    status: normalizeStatus(a.querySelector('my_status')?.textContent || ''),
+    watched: parseInt(a.querySelector('my_watched_episodes')?.textContent)||0,
+    totalEp: parseInt(a.querySelector('series_episodes')?.textContent)||0,
+    tags: (a.querySelector('my_tags')?.textContent||'').split(',').map(t=>t.trim()).filter(Boolean),
+    year: parseInt((a.querySelector('my_finish_date')?.textContent || a.querySelector('my_start_date')?.textContent || '').slice(0,4)) || 0
+  })).filter(a => a.mal_id);
+  go(data);
+}
+
+function normalizeRow(r){
+  return {
+    title: r.series_title || r.title || 'Unknown',
+    mal_id: parseInt(r.series_animedb_id || r.mal_id || 0) || null,
+    score: parseInt(r.my_score || r.score || 0),
+    status: normalizeStatus(r.my_status || r.status || ''),
+    watched: parseInt(r.my_watched_episodes || 0),
+    totalEp: parseInt(r.series_episodes || r.totalEp || 0),
+    tags: (r.my_tags || r.tags || '').split(',').map(t=>t.trim()).filter(Boolean),
+    year: parseInt(r.year || (r.my_finish_date||'').slice(0,4)) || 0
+  };
+}
+
+function normalizeStatus(s){
+  if(!s) return 'Unknown';
+  const str = s.toString().toLowerCase();
+  if(str.includes('watch')) return 'Watching';
+  if(str.includes('complete')) return 'Completed';
+  if(str.includes('hold')) return 'On-Hold';
+  if(str.includes('drop')) return 'Dropped';
+  if(str.includes('plan')) return 'Plan to Watch';
+  return 'Unknown';
+}
+
+// main
+function go(loadedData){
+  // Check if loadedData is raw (from file) or enriched (from LocalStorage)
+  if (loadedData.some(item => item.hasOwnProperty('malScore'))) {
+      enriched = loadedData;
+      // Re-map to simple data format needed by some non-enriched functions
+      data = loadedData.map(d => ({
+        ...d,
+        tags: d.tags || d.apiGenres, // Use enriched genres if available
+      }));
+  } else {
+      // Data is raw from file, need to initialize enriched structure
+      data = loadedData;
+      enriched = loadedData.map(a => ({...a, apiGenres: a.tags || [], malScore: null}));
+  }
+
+  el('drop-zone').classList.add('hidden');
+  el('offline-data-prompt').style.display = 'none';
+  el('dashboard').classList.remove('hidden');
+
+  updateStats();
+  renderCharts();
+  determinePersonality();
+  renderInsights();
+  renderRecommendations();
+  renderAchievements();
+
+  saveAnalysis(enriched); // PWA: Spremi analizu čim je prikazana
+  setStatus('GOTOVO! Pokreni <strong>SHADOW FETCH</strong> za punu analizu.' + (!isOnline ? ' (Offline: Shadow Fetch onemogućen)' : ''));
+}
+
+// stats + helpers
+function updateStats(){
+  const comp = data.filter(a=>a.status==='Completed').length;
+  const scored = data.filter(a=>a.score>0);
+  const mean = scored.length ? (scored.reduce((s,a)=>s+a.score,0) / scored.length) : 0;
+  const eps = data.reduce((s,a)=>s + (a.watched||0), 0);
+  const days = Math.round(eps * 24 / 1440);
+  el('completed').textContent = comp;
+  el('mean').textContent = mean.toFixed(2);
+  el('eps').textContent = eps;
+  el('days').textContent = days;
+  el('tens').textContent = data.filter(a=>a.score===10).length;
+}
+
+// Shadow fetch (AniList GraphQL) — batch
+async function batchFetchAnimeData(malIds){
+  // build query
+  const queries = malIds.map((id,i) => `anime${i}: Media(idMal: ${id}, type: ANIME) { idMal title { romaji } genres averageScore }`).join('\n');
+  const payload = { query: `query { ${queries} }` };
+  const res = await fetch('https://graphql.anilist.co', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const json = await res.json();
+  return json.data || {};
+}
+
+el('shadowBtn').onclick = async () => {
+  if (!isOnline) { setStatus('Offline: Shadow Fetch ne može raditi bez mreže.', true); return; }
+
+  const btn = el('shadowBtn');
+  const malIds = enriched.filter(a => a.mal_id && !a.malScore).map(a => a.mal_id);
+  if(!malIds.length){ setStatus('Svi naslovi već obogaćeni!'); return; }
+  btn.disabled = true; btn.textContent='Fetching...'; setStatus('<div class="progress"><div id="bar" class="progress-bar" style="width:0%"></div></div><div id="log">Počinjem Shadow Fetch...</div>');
+  const batchSize = 20; let processed = 0;
+  
+  for(let i=0;i<malIds.length;i+=batchSize){
+    const batch = malIds.slice(i, i+batchSize);
+    el('log').textContent = `Batch ${i+1}–${Math.min(i+batchSize, malIds.length)} od ${malIds.length}...`;
+    
+    if (!isOnline) { // Re-check network status during long fetch
+        setStatus('Shadow Fetch prekinut: Izgubljena mreža.', true);
+        break;
+    }
+    
+    try{
+      const results = await batchFetchAnimeData(batch);
+      Object.keys(results).forEach(k => {
+        const anime = results[k];
+        if(!anime) return;
+        const idx = parseInt(k.replace('anime',''));
+        const malId = batch[idx];
+        const item = enriched.find(a => a.mal_id === malId);
+        if(item){
+          item.apiGenres = (anime.genres || item.apiGenres || []);
+          item.malScore = anime.averageScore ? (anime.averageScore/10).toFixed(2) : null;
+        }
+      });
+    } catch(err){
+      console.warn('Batch fetch error', err);
+      // non-fatal: continue, but display message
+      setStatus('Dio batchova nije dohvaćen (mreža). Nastavljam...', true);
+    }
+    processed += batch.length;
+    el('bar').style.width = Math.min(100, Math.round(processed / malIds.length * 100)) + '%';
+    await new Promise(r => setTimeout(r, 500));
+  }
+  
+  btn.disabled = false; btn.textContent = 'SHADOW FETCH (AniList)';
+  setStatus(`SHADOW FETCH ZAVRŠEN — obogaćeno ~${processed} naslova.`, false);
+  renderCharts(); renderInsights(); renderRecommendations(); renderAchievements();
+  saveAnalysis(enriched); // Spremi obogaćenu analizu
+};
+
+// Charts rendering
+function renderCharts(){
+  renderStatusChart(); renderTimelineChart(); renderVsChart(); renderGenreChart();
+}
+
+function renderStatusChart(){
+  const counts = {}; data.forEach(a => counts[a.status] = (counts[a.status]||0)+1);
+  const ctx = el('statusChart'); if(statusChartInstance) statusChartInstance.destroy();
+  statusChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
+}
+
+function renderTimelineChart(){
+  const years = {}; enriched.forEach(a => { if(a.year>0 && a.status==='Completed') years[a.year] = (years[a.year]||0)+1; });
+  const sorted = Object.entries(years).sort((a,b)=>a[0]-b[0]);
+  const ctx = el('timelineChart'); if(timelineChartInstance) timelineChartInstance.destroy();
+  timelineChartInstance = new Chart(ctx, { type:'line', data:{ labels:sorted.map(x=>x[0]), datasets:[{ label:'Završeno', data:sorted.map(x=>x[1]), borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue'), backgroundColor:'rgba(0,217,255,0.12)', tension:.3, fill:true }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } }, x:{ ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } } }, plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
+}
+
+function renderVsChart(){
+  const valid = enriched.filter(a => a.score>0 && a.malScore);
+  const placeholder = el('vsError');
+  const ctx = el('vsChart'); if(vsChartInstance) vsChartInstance.destroy();
+  if(valid.length < 5){ placeholder.style.display='flex'; return; } placeholder.style.display='none';
+  // Izdvajamo samo prvih 15 za čitljivost
+  const top15 = valid.slice(0,15);
+  vsChartInstance = new Chart(ctx, { type:'bar', data:{ labels:top15.map(a=>a.title.length>24? a.title.slice(0,21)+'...' : a.title), datasets:[{label:'Tvoja ocjena', data:top15.map(a=>a.score), backgroundColor:'#00ff88'},{label:'AniList prosjek', data:top15.map(a=>parseFloat(a.malScore)), backgroundColor:'#ff0066'}] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ min:0, max:10, ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } } }, plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
+}
+
+function renderGenreChart(){
+  const ctx = el('genreChart'), placeholder = el('genrePlaceholder'); if(genreChartInstance) genreChartInstance.destroy();
+  const g = {}; enriched.forEach(a => (a.apiGenres||[]).forEach(x => g[x] = (g[x]||0)+1));
+  const top = Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(top.length===0){ placeholder.style.display='flex'; return; } placeholder.style.display='none';
+  genreChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:top.map(x=>x[0]), datasets:[{ data:top.map(x=>x[1]), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800','#88ff00','#0088ff','#ff0088','#00ff00','#ffff00'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
+}
+
+// insights + achievements + personality
+function determinePersonality(){
+  const mean = parseFloat(el('mean').textContent) || 0;
+  const tens = parseInt(el('tens').textContent) || 0;
+  const completed = parseInt(el('completed').textContent) || 0;
+  let archetype='The Balanced Viewer', desc='Uživaš u raznolikosti.', quote='„Solidan ukus.“';
+  if(mean>8.7){ archetype='The Generous God'; desc='Voliš sve.'; quote='„Za tebe je sve 9+.\"'; }
+  else if(mean>8.2){ archetype='The Soft Critic'; desc='Daješ visoke ocjene.'; quote='„Volis anime.\"'; }
+  else if(mean<6.5){ archetype='The Harsh Judge'; desc='Samo najbolje prolazi.'; quote='„Poštovanje.\"'; }
+  if(tens>25){ archetype='The 10/10 Chad'; desc='Perfekcionist.'; quote='„Ti si legenda.\"'; }
+  if(completed>300){ archetype='The Eternal Marathoner'; desc='Živiš anime.'; quote='„Ti si MAL statistika.\"'; }
+  el('personality-title').textContent = archetype;
+  el('personality-desc').textContent = desc;
+  el('personality-comment').textContent = quote;
+  el('insight-archetype').textContent = `${archetype} — ${desc}`;
+}
+
+function renderInsights(){
+  const longest = data.reduce((a,b)=> b.totalEp > (a.totalEp||0) ? b : a, data[0]||{});
+  el('insight-marathon').textContent = longest && longest.title ? `${longest.title} (${longest.totalEp} ep)` : 'N/A';
+  const tens = enriched.filter(a=>a.score===10);
+  const controversial = tens.length ? tens.sort((a,b)=> (a.malScore||10) - (b.malScore||10))[0] : null;
+  el('insight-controversial').textContent = controversial ? `${controversial.title} (${controversial.malScore ? parseFloat(controversial.malScore).toFixed(1) : '?' } prosjek)` : 'Nema 10/10';
+  const worst = data.filter(a=>a.score>0).reduce((a,b)=> a.score < b.score ? a : b, data[0]||{});
+  el('insight-gap').textContent = worst && worst.title ? `${worst.title} (${worst.score}/10)` : 'N/A';
+}
+
+function renderRecommendations(){
+  const c = el('recsContent');
+  if(enriched.filter(a=> (a.apiGenres||[]).length>0 && a.score>0).length < 10){ c.innerHTML = '<p style="color:var(--muted)">Nema dovoljno podataka za preporuke.</p>'; return; }
+  // placeholder simple: top genre-based picks
+  c.innerHTML = '<p style="color:var(--muted)">Preporuke: (placeholder) — uskoro cosine similarity.</p>';
+}
+
+function renderAchievements(){
+  const c = el('achievementsContent'); const completed = parseInt(el('completed').textContent)||0; const mean = parseFloat(el('mean').textContent)||0; const tens = parseInt(el('tens').textContent)||0;
+  const badges = [];
+  if(completed>=1000) badges.push('MyAnimeDeity'); else if(completed>=500) badges.push('Completionist Legend'); else if(completed>=250) badges.push('Veteran');
+  if(mean>8.8) badges.push('Generous Heart'); if(mean<6) badges.push('Elite Critic');
+  if(tens>30) badges.push('Masterpiece Hunter'); if(tens===0) badges.push('Zero Ten Purist');
+  if(data.filter(a=>a.score===1).length>15) badges.push('Doom Bringer');
+  c.innerHTML = badges.length ? badges.map(b=>`<span class="badge">${b}</span>`).join(' ') : '<div style="color:var(--muted)">Još nema badgeova.</div>';
+}
+
+// export + infographic
+el('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(enriched, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nitro_v10_enriched.json'; a.click();
+};
+el('infoBtn').onclick = () => {
+  const html = `<!doctype html><html><body style="background:#000;color:#0f0;font-family:monospace;text-align:center;padding:50px;"><h1>NITRO ANALYTICS V10</h1><h2>${el('personality-title').textContent}</h2><p>Završeno: <strong>${el('completed').textContent}</strong></p><p>Prosjek: <strong>${el('mean').textContent}</strong></p><p>Epizoda: <strong>${el('eps').textContent}</strong> (≈ ${el('days').textContent} dana)</p><p>10/10: <strong>${el('tens').textContent}</strong></p><p style="margin-top:80px;color:#888;">Generated: ${new Date().toLocaleString('hr-HR')}</p></body></html>`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], {type:'text/html'})); a.download = 'nitro_infographic.html'; a.click();
+};
+
+// reset
+el('resetBtn').onclick = () => location.reload();
+
+// PWA: Učitaj zadnju analizu
+el('loadLastAnalysisBtn').onclick = () => {
+    const lastData = loadAnalysis();
+    if (lastData) {
+        go(lastData);
+        setStatus('Učitana posljednja spremljena analiza.', false);
+    } else {
+        setStatus('Nema spremljene analize za učitavanje.', true);
+    }
+};
+
+// --- INICIJALIZACIJA APLIKACIJE ---
+function initApp() {
+    updateOnlineStatus();
+
+    // PWA: Registracija Service Workera
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js', { scope: './' })
+            .then(reg => { console.log('SW registrovan. Scope:', reg.scope); })
+            .catch(err => console.error('SW registracija neuspješna (Sandbox error):', err));
+    }
+
+    const lastData = loadAnalysis();
+    if (!isOnline && lastData) {
+        showOfflinePrompt();
+    } else if (isOnline && lastData) {
+        // Prikazi normalnu drop zonu, ali obavijesti da postoji stara analiza
+        setStatus('Spreman. Postoji spremljena analiza. Klikni na UČITAJ POSLJEDNJU ANALIZU u gornjem desnom kutu ako je Offline.', false);
+    } else {
+        setStatus('Spreman. Dropni MAL XML/CSV ili klikni na zonu.');
+    }
+}
+
+// small niceties: allow pressing Enter to open file dialog
+document.addEventListener('keydown', e => { if(e.key==='/' && !document.querySelector('input:focus')) { fileInput.click(); e.preventDefault(); } });
+
+
+document.addEventListener('DOMContentLoaded', initApp);
+
+// expose for debug
+window._nitro = { data, enriched, renderCharts };
+</script>
+</body>
+</html>
