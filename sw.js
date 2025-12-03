@@ -1,12 +1,13 @@
 // Prije: const CACHE_STATIC_KEY = 'nitro-pwa-static-v1';
-const CACHE_STATIC_KEY = 'nitro-pwa-static-v2';
-const CACHE_CDN_KEY = 'nitro-pwa-cdn-v1';
+const CACHE_STATIC_KEY = 'nitro-pwa-static-v3';
+const CACHE_CDN_KEY = 'nitro-pwa-cdn-v3';
 
 // Statika za keširanje (HTML, SW, Manifest)
 const staticAssets = [
-  './nitro_analytics.html',
-  './sw.js',
-  './manifest.json',
+  '/nitro-analytics-pwa/nitro_analytics.html',
+  '/nitro-analytics-pwa/sw.js',
+  '/nitro-analytics-pwa/manifest.json',
+];
   // Koristimo Chart.js i PapaParse kao CDN resurse, oni idu u CDN keš
 ];
 
@@ -143,4 +144,5 @@ self.addEventListener('fetch', event => {
 // --- Bonus: Detekcija ažuriranja Service Workera ---
 self.addEventListener('controllerchange', () => {
   console.log('[SW] Novi Service Worker preuzeo kontrolu. Aplikacija se može osvježiti za nove značajke.');
+
 });
