@@ -2,21 +2,19 @@
 <html lang="hr">
 <head>
 <meta charset="utf-8" />
-<!-- PWA Meta Tags -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICAgIDxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSIjMDUwNTA1Ii8+CiAgICA8cGF0aCBkPSJNMjU2IDEwMCBMNDAwIDQxMiBIMTEyIFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzAwZmY4OCIgc3Ryb2tlLXdpZHRoPSIyMCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBmaWx0ZXI9InVybCgjbml0cm8tZ2xvdykiLz4KICAgIDxkZWZzPgogICAgICAgIDxmaWx0ZXIgaWQ9Im5pdHJvLWdsb3ciIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJTZXJpZkFsdHMiIHR5cGU9Im1hdHJpeCIgdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgLjA3IDAgMCAwIDAgLjI4NTAgMCAwIDAgMSAwIiByZXN1bHQ9Im1hbmctZmxvcmEtdmVyZCIvPgogICAgICAgICAgICA8ZmVPZmZzZXQgZHk9IjAiIGluPSJtYW5nLWZsb3JhLXZlcmQiIHJlc3VsdD0idG9kby0yMS05MCIvPgogICAgICAgICAgICA8ZmVGdXp6eUNhbGN1bGF0ZSBpbiJ0b2RvLTIxLTkwIiByZXN1bHQ9InR1cm5lZCIgcmFkaXVzPSIxMCIvPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJ0dXJuZWQiIHR5cGU9Im1hdHJpeCIgdmFsdWVzPSIxIDAgMCAwIDAgIDAgMSAwIDAgMCAgMCAwIDEgMCAwICAwIDAgMCAxIDAiIHJlc3VsdD0ibml0cm8tbGFiZWwiLz4KICAgICAgICAgICAgPGZlQmx1ciBpbiJuaXRyby1sYWJlbCIgc3RkRGV2aWF0aW9uPSIxMiIvPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJibHVyIiB0eXBlPSJtYXRyaXgiIHZhbHVlcz0iMSAwIDAgMCAwICAwIDIgMCAwIDAgIDAgMiAxIDAgMCAgMCAwIDAgMjAgLTEwIi8+CiAgICAgICAgICAgIDxmZU1lcmdlPgogICAgICAgICAgICAgICAgPGZlTWVyZ2VOb2RlIGluPSJmaWx0ZXIgb3JpZ2luYWwiLz4KICAgICAgICAgICAgICAgIDxmZU1lcmdlTm9kZSBpbiJtYW5nLWZsb3JhLXZlcmQiLz4KICAgICAgICAgICAgPC9mZU1lcmdlPgogICAgICAgIDwvZmlsdGVyPgogICAgPC9kZWZzPgo8L3N2Zz4=">
 <link rel="manifest" href="./manifest.json">
-<base href="./">
 <title>NITRO ANALYTICS V10 PWA</title>
 
-<!-- Chart.js + PapaParse -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 
 <style>
+/* ... (Sav tvoj CSS ostaje ovdje) ... */
 :root{
   --bg:#050505;--card:#0f1112;--text:#e6eef0;--muted:#9aa6aa;
   --accent:#00ff88;--blue:#00d9ff;--red:#ff4477;--gold:#ffd66b;
@@ -67,7 +65,6 @@ canvas{width:100% !important;height:300px !important;display:block}
 </style>
 </head>
 <body>
-<!-- PWA Status Indicator -->
 <div id="status-indicator" style="position:fixed;top:10px;right:10px;font-size:0.8rem;padding:4px 8px;border-radius:6px;font-weight:700;z-index:100"></div>
 
 <div class="container">
@@ -82,19 +79,15 @@ canvas{width:100% !important;height:300px !important;display:block}
     </div>
   </div>
 
-  <!-- drop zone -->
   <div id="drop-zone"><h2>DROP MAL XML / CSV</h2><p>ili klikni za odabir datoteke</p><input id="fileInput" type="file" accept=".xml,.csv" style="display:none"></div>
 
-  <!-- OFFLINE DATA PROMPT -->
   <div id="offline-data-prompt" class="card" style="text-align:center;margin-top:18px;padding:30px;display:none;">
       <h2 style="font-size:1.5rem;color:var(--red);margin-bottom:10px;">🔌 OFFLINE MODE</h2>
       <p style="color:var(--muted);margin-bottom:15px;">Mreža nije dostupna. Učitaj posljednju analizu za offline pregled.</p>
       <button id="loadLastAnalysisBtn" class="btn">UČITAJ POSLJEDNJU ANALIZU</button>
   </div>
 
-  <!-- dashboard (hidden until data) -->
   <div id="dashboard" class="hidden">
-    <!-- OFFLINE WARNING INSIDE DASHBOARD -->
     <div id="offline-warning" class="card" style="background:var(--red);border-color:var(--red);color:#fff;margin-top:18px;padding:12px;display:none;text-align:center;font-weight:700">
         ⚠️ OFFLINE: Shadow Fetch (AniList) je preskočen.
     </div>
@@ -527,16 +520,32 @@ el('loadLastAnalysisBtn').onclick = () => {
     }
 };
 
-// --- INICIJALIZACIJA APLIKACIJE ---
+// --- INICIJALIZACIJA APLIKACIJE (Dinamički Service Worker) ---
+function getServiceWorkerScope() {
+    // Ako je URL na GitHub Pagesu (spage-sketch.github.io/repo), koristi putanju repozitorija.
+    // Primjer: 'https://spage-sketch.github.io/nitro-analytics-pwa/'
+    // Provjeravamo ima li path segmenta nakon prvog '/'
+    const pathSegments = window.location.pathname.split('/').filter(Boolean);
+    if (window.location.host.endsWith('github.io') && pathSegments.length > 0) {
+        // Vraća npr. /nitro-analytics-pwa/
+        return `/${pathSegments[0]}/`;
+    }
+    // Za sve ostale domene (localhost, pages.dev, custom domene) koristi ROOT putanju.
+    return '/';
+}
+
 function initApp() {
     updateOnlineStatus();
 
-    // PWA: Registracija Service Workera
+    // PWA: Registracija Service Workera - Dinamički scope
     if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/nitro-analytics-pwa/sw.js', { scope: '/nitro-analytics-pwa/' })
-        .then(reg => { console.log('SW registrovan. Scope:', reg.scope); })
-        .catch(err => console.error('SW registracija neuspješna (Sandbox error):', err));
-}
+        const scope = getServiceWorkerScope();
+        const swPath = scope + 'sw.js';
+
+        navigator.serviceWorker.register(swPath, { scope: scope })
+            .then(reg => { console.log('SW registrovan. Scope:', reg.scope); })
+            .catch(err => console.error('SW registracija neuspješna:', err));
+    }
 
     const lastData = loadAnalysis();
     if (!isOnline && lastData) {
@@ -560,4 +569,3 @@ window._nitro = { data, enriched, renderCharts };
 </script>
 </body>
 </html>
-
