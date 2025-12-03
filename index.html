@@ -7,16 +7,19 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICAgIDxyZWN0IHdpZHRoPSI1MTIiIGhlaWdodD0iNTEyIiBmaWxsPSIjMDUwNTA1Ii8+CiAgICA8cGF0aCBkPSJNMjU2IDEwMCBMNDAwIDQxMiBIMTEyIFoiIGZpbGw9Im5vbmUiIHN0cm9rZT0iIzAwZmY4OCIgc3Ryb2tlLXdpZHRoPSIyMCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBmaWx0ZXI9InVybCgjbml0cm8tZ2xvdykiLz4KICAgIDxkZWZzPgogICAgICAgIDxmaWx0ZXIgaWQ9Im5pdHJvLWdsb3ciIHg9Ii01MCUiIHk9Ii01MCUiIHdpZHRoPSIyMDAlIiBoZWlnaHQ9IjIwMCUiPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJTZXJpZkFsdHMiIHR5cGU9Im1hdHJpeCIgdmFsdWVzPSIwIDAgMCAwIDAgIDAgMCAwIDAgLjA3IDAgMCAwIDAgLjI4NTAgMCAwIDAgMSAwIiByZXN1bHQ9Im1hbmctZmxvcmEtdmVyZCIvPgogICAgICAgICAgICA8ZmVPZmZzZXQgZHk9IjAiIGluPSJtYW5nLWZsb3JhLXZlcmQiIHJlc3VsdD0idG9kby0yMS05MCIvPgogICAgICAgICAgICA8ZmVGdXp6eUNhbGN1bGF0ZSBpbiJ0b2RvLTIxLTkwIiByZXN1bHQ9InR1cm5lZCIgcmFkaXVzPSIxMCIvPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJ0dXJuZWQiIHR5cGU9Im1hdHJpeCIgdmFsdWVzPSIxIDAgMCAwIDAgIDAgMSAwIDAgMCAgMCAwIDEgMCAwICAwIDAgMCAxIDAiIHJlc3VsdD0ibml0cm8tbGFiZWwiLz4KICAgICAgICAgICAgPGZlQmx1ciBpbiJuaXRyby1sYWJlbCIgc3RkRGV2aWF0aW9uPSIxMiIvPgogICAgICAgICAgICA8ZmVDb2xvck1hdHJpeCBpbiJibHVyIiB0eXBlPSJtYXRyaXgiIHZhbHVlcz0iMSAwIDAgMCAwICAwIDIgMCAwIDAgIDAgMiAxIDAgMCAgMCAwIDAgMjAgLTEwIi8+CiAgICAgICAgICAgIDxmZU1lcmdlPgogICAgICAgICAgICAgICAgPGZlTWVyZ2VOb2RlIGluPSJmaWx0ZXIgb3JpZ2luYWwiLz4KICAgICAgICAgICAgICAgIDxmZU1lcmdlTm9kZSBpbiJtYW5nLWZsb3JhLXZlcmQiLz4KICAgICAgICAgICAgPC9mZU1lcmdlPgogICAgICAgIDwvZmlsdGVyPgogICAgPC9kZWZzPgo8L3N2Zz4=">
-
-<!-- OVO JE KLJUČNO ZA PWABUILDER I PLAY STORE -->
 <link rel="manifest" href="./manifest.json">
-<link rel="service-worker" href="./sw.js">
-
 <title>NITRO ANALYTICS V10 PWA</title>
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
 <style>
-:root{--bg:#050505;--card:#0f1112;--text:#e6eef0;--muted:#9aa6aa;--accent:#00ff88;--blue:#00d9ff;--red:#ff4477;--gold:#ffd66b;--line:#222;--shadow:rgba(0,255,136,0.18)}
+/* ... (Sav tvoj CSS ostaje ovdje) ... */
+:root{
+  --bg:#050505;--card:#0f1112;--text:#e6eef0;--muted:#9aa6aa;
+  --accent:#00ff88;--blue:#00d9ff;--red:#ff4477;--gold:#ffd66b;
+  --line:#222;--shadow:rgba(0,255,136,0.18);
+}
 body{margin:0;padding:24px;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial;min-height:100vh;}
 body.light{--bg:#f6f7f8;--card:#ffffff;--text:#111218;--muted:#6b7280;--accent:#007b4f;--blue:#006b8f;--line:#e6eef0;--shadow:rgba(0,0,0,0.06)}
 .container{max-width:1200px;margin:0 auto}
@@ -25,10 +28,13 @@ body.light{--bg:#f6f7f8;--card:#ffffff;--text:#111218;--muted:#6b7280;--accent:#
 .title small{font-size:0.85rem;color:var(--muted)}
 .themeBtn{background:transparent;border:1px solid var(--line);padding:8px 12px;border-radius:10px;cursor:pointer;color:var(--text)}
 .themeBtn:hover{box-shadow:0 6px 24px var(--shadow);transform:translateY(-2px)}
+/* drop zone */
 #drop-zone{border:3px dashed rgba(255,255,255,0.04);padding:42px;border-radius:14px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));cursor:pointer;text-align:center;transition:all .25s;max-width:720px;margin:0 auto}
 #drop-zone.highlight{background:linear-gradient(180deg, rgba(0,255,136,0.06), rgba(0,217,255,0.02));box-shadow:0 0 60px var(--shadow);transform:translateY(-4px);border-color:var(--accent)}
 #drop-zone h2{margin:0;color:var(--accent);font-size:1.4rem}
 #drop-zone p{margin:6px 0;color:var(--muted)}
+
+/* layout */
 .grid-kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-top:22px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,0.55);transition:transform .18s, box-shadow .18s;backdrop-filter: blur(6px)}
 .card:hover{transform:translateY(-6px);box-shadow:0 18px 40px rgba(0,0,0,0.6), 0 0 80px var(--shadow)}
@@ -36,22 +42,31 @@ body.light{--bg:#f6f7f8;--card:#ffffff;--text:#111218;--muted:#6b7280;--accent:#
 .big-num{font-size:2.6rem;font-weight:800;color:var(--accent);text-align:center}
 .label{font-size:0.78rem;color:var(--muted);text-transform:uppercase;text-align:center;margin-top:6px}
 .grid-full{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin-top:22px}
+
+/* charts */
 canvas{width:100% !important;height:300px !important;display:block}
+
+/* controls */
 .btn{background:var(--accent);color:#021;padding:10px 18px;border-radius:10px;border:none;cursor:pointer;font-weight:700}
 .btn.secondary{background:transparent;border:1px solid var(--line);color:var(--text)}
 .btn:disabled{opacity:.55;cursor:not-allowed}
+
+/* badges & misc */
 .badge{background:var(--blue);color:var(--bg);display:inline-block;padding:6px 10px;border-radius:8px;margin:6px;font-weight:700}
 .no-data{color:var(--muted);padding:28px;text-align:center;display:flex;justify-content:center;align-items:center}
 .progress{width:100%;height:12px;background:rgba(255,255,255,0.03);border-radius:8px;overflow:hidden}
 .progress-bar{height:100%;width:0;background:linear-gradient(90deg,var(--accent),var(--blue));transition:width .4s}
 .footer{margin-top:28px;color:var(--muted);font-size:0.9rem;text-align:center}
 .controls-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-.hidden{display:none !important}
-@media (max-width:720px){.big-num{font-size:1.8rem} canvas{height:220px !important}}
+@media (max-width:720px){
+  .big-num{font-size:1.8rem}
+  canvas{height:220px !important}
+}
 </style>
 </head>
 <body>
 <div id="status-indicator" style="position:fixed;top:10px;right:10px;font-size:0.8rem;padding:4px 8px;border-radius:6px;font-weight:700;z-index:100"></div>
+
 <div class="container">
   <div class="header">
     <div class="title">
@@ -59,32 +74,30 @@ canvas{width:100% !important;height:300px !important;display:block}
       <small>Offline-ready MAL Analyzer — drag & drop CSV / XML</small>
     </div>
     <div style="display:flex;gap:10px;align-items:center">
-      <button id="themeToggle" class="themeBtn" title="Toggle theme">Theme</button>
-      <a id="downloadZipBtn" class="themeBtn" style="display:none">Download Snapshot</a>
+      <button id="themeToggle" class="themeBtn" title="Toggle theme">💡 Theme</button>
+      <a id="downloadZipBtn" class="themeBtn" style="display:none">📦 Download Snapshot</a>
     </div>
   </div>
 
-  <div id="drop-zone">
-    <h2>DROP MAL XML / CSV</h2>
-    <p>ili klikni za odabir datoteke</p>
-    <input id="fileInput" type="file" accept=".xml,.csv" style="display:none">
-  </div>
+  <div id="drop-zone"><h2>DROP MAL XML / CSV</h2><p>ili klikni za odabir datoteke</p><input id="fileInput" type="file" accept=".xml,.csv" style="display:none"></div>
 
   <div id="offline-data-prompt" class="card" style="text-align:center;margin-top:18px;padding:30px;display:none;">
-      <h2 style="font-size:1.5rem;color:var(--red);margin-bottom:10px;">OFFLINE MODE</h2>
+      <h2 style="font-size:1.5rem;color:var(--red);margin-bottom:10px;">🔌 OFFLINE MODE</h2>
       <p style="color:var(--muted);margin-bottom:15px;">Mreža nije dostupna. Učitaj posljednju analizu za offline pregled.</p>
       <button id="loadLastAnalysisBtn" class="btn">UČITAJ POSLJEDNJU ANALIZU</button>
   </div>
 
   <div id="dashboard" class="hidden">
     <div id="offline-warning" class="card" style="background:var(--red);border-color:var(--red);color:#fff;margin-top:18px;padding:12px;display:none;text-align:center;font-weight:700">
-        OFFLINE: Shadow Fetch (AniList) je preskočen.
+        ⚠️ OFFLINE: Shadow Fetch (AniList) je preskočen.
     </div>
+
     <div id="personality-box" class="card" style="margin-top:18px;text-align:center">
       <div id="personality-title" style="font-size:1.25rem;font-weight:800">Analiza u tijeku...</div>
       <div id="personality-desc" style="color:var(--muted);margin-top:6px">Učitavam tvoj anime arhetip</div>
       <div id="personality-comment" style="margin-top:12px;color:var(--accent);font-weight:700">"..."</div>
     </div>
+
     <div class="grid-kpi">
       <div class="card"><div class="big-num" id="completed">0</div><div class="label">Završeno</div></div>
       <div class="card"><div class="big-num" id="mean">0.00</div><div class="label">Prosjek</div></div>
@@ -92,21 +105,25 @@ canvas{width:100% !important;height:300px !important;display:block}
       <div class="card"><div class="big-num" id="days">0</div><div class="label">Dana gledanja</div></div>
       <div class="card"><div class="big-num" id="tens" style="color:var(--gold)">0</div><div class="label">10/10</div></div>
     </div>
+
     <div class="grid-full">
       <div class="card">
         <div class="card-header">STATUS DISTRIBUCIJA</div>
         <canvas id="statusChart"></canvas>
       </div>
+
       <div class="card">
         <div class="card-header">OCJENE vs ANILIST PROSJEK</div>
         <canvas id="vsChart"></canvas>
         <div id="vsError" class="no-data">Pokreni Shadow Fetch za usporedbu</div>
       </div>
+
       <div class="card">
         <div class="card-header">ZAVRŠENO PO GODINAMA</div>
         <canvas id="timelineChart"></canvas>
       </div>
     </div>
+
     <div class="grid-full" style="margin-top:18px">
       <div class="card">
         <div class="card-header">DUBINSKA ANALIZA</div>
@@ -117,20 +134,24 @@ canvas{width:100% !important;height:300px !important;display:block}
           <div class="insight-item" style="margin-top:10px"><div style="font-weight:700">Najgori uradak:</div><div id="insight-gap" style="margin-top:6px;color:var(--muted)">-</div></div>
         </div>
       </div>
+
       <div class="card">
         <div class="card-header">TOP 10 ŽANROVA</div>
         <canvas id="genreChart"></canvas>
         <div id="genrePlaceholder" class="no-data">Pokreni Shadow Fetch za žanrove</div>
       </div>
+
       <div class="card">
         <div class="card-header">COSINE PREPORUKE</div>
         <div id="recsContent" class="no-data">Pokreni Shadow Fetch za preporuke</div>
       </div>
+
       <div class="card">
         <div class="card-header">ACHIEVEMENTI</div>
         <div id="achievementsContent" style="text-align:center;padding:12px">Pokreni Shadow Fetch za badgeove</div>
       </div>
     </div>
+
     <div style="margin-top:18px" class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div class="controls-row">
@@ -143,16 +164,19 @@ canvas{width:100% !important;height:300px !important;display:block}
           <div id="statusMsg" style="color:var(--muted)">Učitaj svoj MAL export da započneš.</div>
         </div>
       </div>
+
       <div style="margin-top:14px">
         <div class="progress"><div id="bar" class="progress-bar"></div></div>
       </div>
+
     </div>
   </div>
+
   <div class="footer">Sav sadržaj ostaje lokalno u tvojem pregledniku. Za full enrichment koristi Shadow Fetch (AniList GraphQL).</div>
 </div>
 
 <script>
-// --- Chart global defaults ---
+// --- Chart global defaults (stable + nice colors)
 if (window.Chart) {
   Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e6eef0';
   Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
@@ -162,29 +186,33 @@ if (window.Chart) {
 // state
 const LAST_ANALYSIS_KEY = 'nitro_last_enriched_data';
 let isOnline = navigator.onLine;
+
 let data = [], enriched = [];
 let statusChartInstance, vsChartInstance, timelineChartInstance, genreChartInstance;
 
 // helpers
 const el = id => document.getElementById(id);
 const setStatus = (html, isError=false) => el('statusMsg').innerHTML = isError ? `<span style="color:var(--red);">${html}</span>` : html;
+const formatNum = v => (v==null || isNaN(v)) ? '—' : v;
 
-// PWA: LocalStorage functions
+// PWA: OFFLINE POHRANA (LocalStorage)
 function saveAnalysis(data) {
     try {
         localStorage.setItem(LAST_ANALYSIS_KEY, JSON.stringify(data));
-        console.log('PWA: Analiza spremljena za offline rad.');
-    } catch (e) { console.error('PWA: Greška pri spremanju:', e); }
+        console.log('PWA: Analiza uspješno spremljena za offline rad.');
+    } catch (e) {
+        console.error('PWA: Greška pri spremanju u LocalStorage:', e);
+    }
 }
 function loadAnalysis() {
     try {
         const json = localStorage.getItem(LAST_ANALYSIS_KEY);
-        return json ? JSON.parse(json) : null;
+        if (json) return JSON.parse(json);
     } catch (e) {
-        console.error('PWA: Greška pri učitavanju:', e);
+        console.error('PWA: Greška pri učitavanju iz LocalStorage-a:', e);
         localStorage.removeItem(LAST_ANALYSIS_KEY);
-        return null;
     }
+    return null;
 }
 function showOfflinePrompt() {
     el('drop-zone').classList.add('hidden');
@@ -192,11 +220,11 @@ function showOfflinePrompt() {
     el('offline-data-prompt').style.display = 'block';
 }
 
-// Online/offline indicator
+// PWA: OFFLINE INDIKATOR
 function updateOnlineStatus() {
     isOnline = navigator.onLine;
     const indicator = el('status-indicator');
-    indicator.textContent = isOnline ? 'ONLINE' : 'OFFLINE';
+    indicator.textContent = isOnline ? 'ONLINE 🌐' : 'OFFLINE 🔌';
     indicator.style.backgroundColor = isOnline ? 'var(--accent)' : 'var(--red)';
     indicator.style.color = isOnline ? 'var(--bg)' : '#fff';
     el('offline-warning').style.display = isOnline ? 'none' : 'block';
@@ -205,34 +233,32 @@ function updateOnlineStatus() {
 window.addEventListener('online', updateOnlineStatus);
 window.addEventListener('offline', updateOnlineStatus);
 
-// Theme toggle
+
+// Theme toggle (persist)
 const themeBtn = el('themeToggle');
 (function initTheme(){
-  const t = localStorage.getItem('nitro_theme') || (window.matchMedia?.('(prefers-color-scheme:light)').matches ? 'light' : 'dark');
+  const t = localStorage.getItem('nitro_theme') || (window.matchMedia && window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark');
   if (t === 'light') document.body.classList.add('light');
-  themeBtn.textContent = document.body.classList.contains('light') ? 'Dark' : 'Light';
+  themeBtn.textContent = document.body.classList.contains('light') ? '🌙 Dark' : '💡 Light';
 })();
 themeBtn.onclick = () => {
   document.body.classList.toggle('light');
   const isLight = document.body.classList.contains('light');
   localStorage.setItem('nitro_theme', isLight ? 'light' : 'dark');
-  themeBtn.textContent = isLight ? 'Dark' : 'Light';
+  themeBtn.textContent = isLight ? '🌙 Dark' : '💡 Light';
 };
 
-// Drag & Drop + File Input
+// drop zone wiring
 const dropZone = el('drop-zone');
 const fileInput = el('fileInput');
 dropZone.onclick = () => fileInput.click();
 fileInput.onchange = e => processFile(e.target.files[0]);
-dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('highlight'); });
-dropZone.addEventListener('dragleave', () => dropZone.classList.remove('highlight'));
-dropZone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropZone.classList.remove('highlight');
-  if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
-});
 
-// File processing
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('highlight');});
+dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('highlight');});
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('highlight'); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); });
+
+// parse file
 function processFile(file){
   if(!file) return;
   el('offline-data-prompt').style.display = 'none';
@@ -288,28 +314,38 @@ function normalizeStatus(s){
   return 'Unknown';
 }
 
-// Main function
+// main
 function go(loadedData){
+  // Check if loadedData is raw (from file) or enriched (from LocalStorage)
   if (loadedData.some(item => item.hasOwnProperty('malScore'))) {
       enriched = loadedData;
-      data = loadedData.map(d => ({...d, tags: d.tags || d.apiGenres}));
+      // Re-map to simple data format needed by some non-enriched functions
+      data = loadedData.map(d => ({
+        ...d,
+        tags: d.tags || d.apiGenres, // Use enriched genres if available
+      }));
   } else {
+      // Data is raw from file, need to initialize enriched structure
       data = loadedData;
       enriched = loadedData.map(a => ({...a, apiGenres: a.tags || [], malScore: null}));
   }
+
   el('drop-zone').classList.add('hidden');
   el('offline-data-prompt').style.display = 'none';
   el('dashboard').classList.remove('hidden');
+
   updateStats();
   renderCharts();
   determinePersonality();
   renderInsights();
   renderRecommendations();
   renderAchievements();
-  saveAnalysis(enriched);
+
+  saveAnalysis(enriched); // PWA: Spremi analizu čim je prikazana
   setStatus('GOTOVO! Pokreni <strong>SHADOW FETCH</strong> za punu analizu.' + (!isOnline ? ' (Offline: Shadow Fetch onemogućen)' : ''));
 }
 
+// stats + helpers
 function updateStats(){
   const comp = data.filter(a=>a.status==='Completed').length;
   const scored = data.filter(a=>a.score>0);
@@ -323,8 +359,9 @@ function updateStats(){
   el('tens').textContent = data.filter(a=>a.score===10).length;
 }
 
-// Shadow Fetch
+// Shadow fetch (AniList GraphQL) — batch
 async function batchFetchAnimeData(malIds){
+  // build query
   const queries = malIds.map((id,i) => `anime${i}: Media(idMal: ${id}, type: ANIME) { idMal title { romaji } genres averageScore }`).join('\n');
   const payload = { query: `query { ${queries} }` };
   const res = await fetch('https://graphql.anilist.co', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
@@ -334,16 +371,22 @@ async function batchFetchAnimeData(malIds){
 
 el('shadowBtn').onclick = async () => {
   if (!isOnline) { setStatus('Offline: Shadow Fetch ne može raditi bez mreže.', true); return; }
+
   const btn = el('shadowBtn');
   const malIds = enriched.filter(a => a.mal_id && !a.malScore).map(a => a.mal_id);
   if(!malIds.length){ setStatus('Svi naslovi već obogaćeni!'); return; }
   btn.disabled = true; btn.textContent='Fetching...'; setStatus('<div class="progress"><div id="bar" class="progress-bar" style="width:0%"></div></div><div id="log">Počinjem Shadow Fetch...</div>');
   const batchSize = 20; let processed = 0;
- 
+  
   for(let i=0;i<malIds.length;i+=batchSize){
     const batch = malIds.slice(i, i+batchSize);
     el('log').textContent = `Batch ${i+1}–${Math.min(i+batchSize, malIds.length)} od ${malIds.length}...`;
-    if (!isOnline) { setStatus('Shadow Fetch prekinut: Izgubljena mreža.', true); break; }
+    
+    if (!isOnline) { // Re-check network status during long fetch
+        setStatus('Shadow Fetch prekinut: Izgubljena mreža.', true);
+        break;
+    }
+    
     try{
       const results = await batchFetchAnimeData(batch);
       Object.keys(results).forEach(k => {
@@ -357,41 +400,50 @@ el('shadowBtn').onclick = async () => {
           item.malScore = anime.averageScore ? (anime.averageScore/10).toFixed(2) : null;
         }
       });
-    } catch(err){ console.warn('Batch error', err); }
+    } catch(err){
+      console.warn('Batch fetch error', err);
+      // non-fatal: continue, but display message
+      setStatus('Dio batchova nije dohvaćen (mreža). Nastavljam...', true);
+    }
     processed += batch.length;
     el('bar').style.width = Math.min(100, Math.round(processed / malIds.length * 100)) + '%';
     await new Promise(r => setTimeout(r, 500));
   }
- 
+  
   btn.disabled = false; btn.textContent = 'SHADOW FETCH (AniList)';
   setStatus(`SHADOW FETCH ZAVRŠEN — obogaćeno ~${processed} naslova.`, false);
   renderCharts(); renderInsights(); renderRecommendations(); renderAchievements();
-  saveAnalysis(enriched);
+  saveAnalysis(enriched); // Spremi obogaćenu analizu
 };
 
-// Charts
+// Charts rendering
 function renderCharts(){
   renderStatusChart(); renderTimelineChart(); renderVsChart(); renderGenreChart();
 }
+
 function renderStatusChart(){
   const counts = {}; data.forEach(a => counts[a.status] = (counts[a.status]||0)+1);
   const ctx = el('statusChart'); if(statusChartInstance) statusChartInstance.destroy();
   statusChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
 }
+
 function renderTimelineChart(){
   const years = {}; enriched.forEach(a => { if(a.year>0 && a.status==='Completed') years[a.year] = (years[a.year]||0)+1; });
   const sorted = Object.entries(years).sort((a,b)=>a[0]-b[0]);
   const ctx = el('timelineChart'); if(timelineChartInstance) timelineChartInstance.destroy();
   timelineChartInstance = new Chart(ctx, { type:'line', data:{ labels:sorted.map(x=>x[0]), datasets:[{ label:'Završeno', data:sorted.map(x=>x[1]), borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue'), backgroundColor:'rgba(0,217,255,0.12)', tension:.3, fill:true }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } }, x:{ ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } } }, plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
 }
+
 function renderVsChart(){
   const valid = enriched.filter(a => a.score>0 && a.malScore);
   const placeholder = el('vsError');
   const ctx = el('vsChart'); if(vsChartInstance) vsChartInstance.destroy();
   if(valid.length < 5){ placeholder.style.display='flex'; return; } placeholder.style.display='none';
+  // Izdvajamo samo prvih 15 za čitljivost
   const top15 = valid.slice(0,15);
   vsChartInstance = new Chart(ctx, { type:'bar', data:{ labels:top15.map(a=>a.title.length>24? a.title.slice(0,21)+'...' : a.title), datasets:[{label:'Tvoja ocjena', data:top15.map(a=>a.score), backgroundColor:'#00ff88'},{label:'AniList prosjek', data:top15.map(a=>parseFloat(a.malScore)), backgroundColor:'#ff0066'}] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ min:0, max:10, ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } } }, plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
 }
+
 function renderGenreChart(){
   const ctx = el('genreChart'), placeholder = el('genrePlaceholder'); if(genreChartInstance) genreChartInstance.destroy();
   const g = {}; enriched.forEach(a => (a.apiGenres||[]).forEach(x => g[x] = (g[x]||0)+1));
@@ -400,7 +452,7 @@ function renderGenreChart(){
   genreChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:top.map(x=>x[0]), datasets:[{ data:top.map(x=>x[1]), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800','#88ff00','#0088ff','#ff0088','#00ff00','#ffff00'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
 }
 
-// Insights + Personality + Achievements
+// insights + achievements + personality
 function determinePersonality(){
   const mean = parseFloat(el('mean').textContent) || 0;
   const tens = parseInt(el('tens').textContent) || 0;
@@ -416,6 +468,7 @@ function determinePersonality(){
   el('personality-comment').textContent = quote;
   el('insight-archetype').textContent = `${archetype} — ${desc}`;
 }
+
 function renderInsights(){
   const longest = data.reduce((a,b)=> b.totalEp > (a.totalEp||0) ? b : a, data[0]||{});
   el('insight-marathon').textContent = longest && longest.title ? `${longest.title} (${longest.totalEp} ep)` : 'N/A';
@@ -425,11 +478,14 @@ function renderInsights(){
   const worst = data.filter(a=>a.score>0).reduce((a,b)=> a.score < b.score ? a : b, data[0]||{});
   el('insight-gap').textContent = worst && worst.title ? `${worst.title} (${worst.score}/10)` : 'N/A';
 }
+
 function renderRecommendations(){
   const c = el('recsContent');
   if(enriched.filter(a=> (a.apiGenres||[]).length>0 && a.score>0).length < 10){ c.innerHTML = '<p style="color:var(--muted)">Nema dovoljno podataka za preporuke.</p>'; return; }
+  // placeholder simple: top genre-based picks
   c.innerHTML = '<p style="color:var(--muted)">Preporuke: (placeholder) — uskoro cosine similarity.</p>';
 }
+
 function renderAchievements(){
   const c = el('achievementsContent'); const completed = parseInt(el('completed').textContent)||0; const mean = parseFloat(el('mean').textContent)||0; const tens = parseInt(el('tens').textContent)||0;
   const badges = [];
@@ -440,7 +496,7 @@ function renderAchievements(){
   c.innerHTML = badges.length ? badges.map(b=>`<span class="badge">${b}</span>`).join(' ') : '<div style="color:var(--muted)">Još nema badgeova.</div>';
 }
 
-// Export + Infographic
+// export + infographic
 el('exportBtn').onclick = () => {
   const blob = new Blob([JSON.stringify(enriched, null, 2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nitro_v10_enriched.json'; a.click();
@@ -449,43 +505,66 @@ el('infoBtn').onclick = () => {
   const html = `<!doctype html><html><body style="background:#000;color:#0f0;font-family:monospace;text-align:center;padding:50px;"><h1>NITRO ANALYTICS V10</h1><h2>${el('personality-title').textContent}</h2><p>Završeno: <strong>${el('completed').textContent}</strong></p><p>Prosjek: <strong>${el('mean').textContent}</strong></p><p>Epizoda: <strong>${el('eps').textContent}</strong> (≈ ${el('days').textContent} dana)</p><p>10/10: <strong>${el('tens').textContent}</strong></p><p style="margin-top:80px;color:#888;">Generated: ${new Date().toLocaleString('hr-HR')}</p></body></html>`;
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], {type:'text/html'})); a.download = 'nitro_infographic.html'; a.click();
 };
+
+// reset
 el('resetBtn').onclick = () => location.reload();
+
+// PWA: Učitaj zadnju analizu
 el('loadLastAnalysisBtn').onclick = () => {
     const lastData = loadAnalysis();
-    if (lastData) { go(lastData); setStatus('Učitana posljednja spremljena analiza.', false); }
-    else { setStatus('Nema spremljene analize za učitavanje.', true); }
+    if (lastData) {
+        go(lastData);
+        setStatus('Učitana posljednja spremljena analiza.', false);
+    } else {
+        setStatus('Nema spremljene analize za učitavanje.', true);
+    }
 };
 
-// Dinamički Service Worker (radi na GitHubu i Cloudflareu)
+// --- INICIJALIZACIJA APLIKACIJE (Dinamički Service Worker) ---
 function getServiceWorkerScope() {
+    // Ako je URL na GitHub Pagesu (spage-sketch.github.io/repo), koristi putanju repozitorija.
+    // Primjer: 'https://spage-sketch.github.io/nitro-analytics-pwa/'
+    // Provjeravamo ima li path segmenta nakon prvog '/'
     const pathSegments = window.location.pathname.split('/').filter(Boolean);
     if (window.location.host.endsWith('github.io') && pathSegments.length > 0) {
+        // Vraća npr. /nitro-analytics-pwa/
         return `/${pathSegments[0]}/`;
     }
+    // Za sve ostale domene (localhost, pages.dev, custom domene) koristi ROOT putanju.
     return '/';
 }
+
 function initApp() {
     updateOnlineStatus();
+
+    // PWA: Registracija Service Workera - Dinamički scope
     if ('serviceWorker' in navigator) {
         const scope = getServiceWorkerScope();
         const swPath = scope + 'sw.js';
+
         navigator.serviceWorker.register(swPath, { scope: scope })
             .then(reg => { console.log('SW registrovan. Scope:', reg.scope); })
             .catch(err => console.error('SW registracija neuspješna:', err));
     }
+
     const lastData = loadAnalysis();
     if (!isOnline && lastData) {
         showOfflinePrompt();
     } else if (isOnline && lastData) {
-        setStatus('Spreman. Postoji spremljena analiza. Klikni na UČITAJ POSLJEDNJU ANALIZU ako je Offline.', false);
+        // Prikazi normalnu drop zonu, ali obavijesti da postoji stara analiza
+        setStatus('Spreman. Postoji spremljena analiza. Klikni na UČITAJ POSLJEDNJU ANALIZU u gornjem desnom kutu ako je Offline.', false);
     } else {
         setStatus('Spreman. Dropni MAL XML/CSV ili klikni na zonu.');
     }
 }
 
+// small niceties: allow pressing Enter to open file dialog
 document.addEventListener('keydown', e => { if(e.key==='/' && !document.querySelector('input:focus')) { fileInput.click(); e.preventDefault(); } });
+
+
 document.addEventListener('DOMContentLoaded', initApp);
 
+// expose for debug
 window._nitro = { data, enriched, renderCharts };
 </script>
 </body>
