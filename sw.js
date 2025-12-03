@@ -1,5 +1,5 @@
-const CACHE_STATIC_KEY = 'nitro-pwa-static-v8';
-const CACHE_CDN_KEY = 'nitro-pwa-cdn-v8';
+const CACHE_STATIC_KEY = 'nitro-pwa-static-v9';
+const CACHE_CDN_KEY = 'nitro-pwa-cdn-v9';
 
 const staticAssets = [
   '/index.html',
@@ -48,7 +48,7 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   
-  // 1. AniList GraphQL API
+  // 1. AniList GraphQL API (Network Only - main thread handles retry)
   if (url.hostname.includes('anilist.co')) {
     event.respondWith(fetch(event.request).catch(() => new Response('{"error": "API Error or Offline"}', { headers: { 'Content-Type': 'application/json' }, status: 503 })));
     return;
