@@ -1,14 +1,12 @@
-// Prije: const CACHE_STATIC_KEY = 'nitro-pwa-static-v1';
-const CACHE_STATIC_KEY = 'nitro-pwa-static-v4';
-const CACHE_CDN_KEY = 'nitro-pwa-cdn-v4';
+// Ime keša i verzija. Mijenjaš KEY kada ažuriraš fajlove.
+const CACHE_STATIC_KEY = 'nitro-pwa-static-v5'; // Povećana verzija
+const CACHE_CDN_KEY = 'nitro-pwa-cdn-v5'; // Povećana verzija
 
-// Statika za keširanje (HTML, SW, Manifest)
+// Statika za keširanje (HTML, SW, Manifest) - Putevi prilagođeni za GitHub Pages subfolder
 const staticAssets = [
   '/nitro-analytics-pwa/index.html',
   '/nitro-analytics-pwa/sw.js',
   '/nitro-analytics-pwa/manifest.json',
-];
-  // Koristimo Chart.js i PapaParse kao CDN resurse, oni idu u CDN keš
 ];
 
 // CDN resursi koje koristimo (Chart.js, PapaParse)
@@ -20,21 +18,22 @@ const cdnAssets = [
 // --- Install Event: Keširanje statike i CDN resursa ---
 self.addEventListener('install', event => {
   console.log('[SW] Service Worker je instaliran, keširanje resursa...');
-  // Čekamo da se keširaju oba skupa resursa
+  
   event.waitUntil(
     Promise.all([
+      // Keširanje statičkih resursa
       caches.open(CACHE_STATIC_KEY).then(cache => {
         return cache.addAll(staticAssets).catch(err => {
           console.error('[SW] Greška pri keširanju statike:', err);
         });
       }),
+      // Keširanje CDN resursa (Popravljen TypeError uklanjanjem { mode: 'cors' })
       caches.open(CACHE_CDN_KEY).then(cache => {
-        // Dodajemo strategiju za handle-anje CORS-a za CDN
         const cdnRequests = cdnAssets.map(url => {
-          return fetch(url, { mode: 'cors' }).then(response => {
+          return fetch(url).then(response => { // FIX: Uklonjen { mode: 'cors' }
             if (!response || response.status !== 200) {
               console.warn(`[SW] CDN resurs nije keširan: ${url}`);
-              return Promise.resolve(); // Ne prekidamo, samo upozorimo
+              return Promise.resolve();
             }
             return cache.put(url, response);
           });
@@ -62,7 +61,7 @@ self.addEventListener('activate', event => {
         })
       );
     })
-    .then(() => self.clients.claim()) // Preuzimanje kontrole nad postojećim klijentima
+    .then(() => self.clients.claim())
   );
 });
 
@@ -71,12 +70,10 @@ self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
   
   // 1. AniList GraphQL API (Network First, bez keširanja)
-  // AniList je dinamičan, uvijek želimo najnovije podatke.
   if (url.hostname.includes('anilist.co')) {
     event.respondWith(
       fetch(event.request).catch(error => {
         console.error('[SW] Greška pri AniList API pozivu, preskačemo:', error);
-        // Nema graceful fall backa za API, samo propadni.
         return new Response('{"error": "API Error or Offline"}', {
           headers: { 'Content-Type': 'application/json' },
           status: 503
@@ -87,19 +84,15 @@ self.addEventListener('fetch', event => {
   }
   
   // 2. CDN Resursi (Cache First, uz fallback na Network)
-  // Uvijek pokušaj iz keša, ako nema, pokušaj s mreže.
   if (url.hostname.includes('cdn.jsdelivr.net')) {
     event.respondWith(
       caches.match(event.request).then(response => {
-        // Vrati iz keša ako postoji
         if (response) {
           console.log(`[SW] Služenje CDN iz keša: ${url.pathname}`);
           return response;
         }
         
-        // Ako nema u kešu, idi na mrežu
         return fetch(event.request).then(networkResponse => {
-          // I keširaj ga za buduće korištenje
           return caches.open(CACHE_CDN_KEY).then(cache => {
             cache.put(event.request, networkResponse.clone());
             return networkResponse;
@@ -107,20 +100,19 @@ self.addEventListener('fetch', event => {
         });
       }).catch(error => {
         console.error('[SW] Greška pri dohvaćanju CDN-a:', error);
-        // Možeš dodati fallback ovdje, npr. prazan JS fajl
       })
     );
     return;
   }
 
   // 3. Lokalni statički fajlovi (Network First, uz fallback na Cache)
-  // Uvijek pokušaj dohvatiti najnoviju verziju sa mreže. Ako nema mreže, vrati keširanu verziju.
-  // Ovo je ključno za glavni HTML fajl.
   event.respondWith(
     fetch(event.request).then(networkResponse => {
       // Keširaj novu verziju (Update keša)
       if (networkResponse && networkResponse.status === 200) {
-        if (staticAssets.includes(url.pathname) || url.pathname === '/') {
+        // Provjeravamo i za root putanju i za statične asete
+        const assetPath = url.pathname;
+        if (staticAssets.includes(assetPath) || assetPath === '/nitro-analytics-pwa/' || assetPath === '/nitro-analytics-pwa/index.html') {
            caches.open(CACHE_STATIC_KEY).then(cache => {
              cache.put(event.request, networkResponse.clone());
            });
@@ -134,8 +126,8 @@ self.addEventListener('fetch', event => {
           console.log(`[SW] Offline: Služenje iz keša: ${url.pathname}`);
           return cachedResponse;
         }
-        // U krajnjem slučaju, za nepoznate URL-ove, vrati fallback (npr. početnu stranicu)
-        return caches.match('/nitro_analytics.html');
+        // U krajnjem slučaju, za nepoznate URL-ove, vrati početnu stranicu
+        return caches.match('/nitro-analytics-pwa/index.html');
       });
     })
   );
@@ -144,6 +136,4 @@ self.addEventListener('fetch', event => {
 // --- Bonus: Detekcija ažuriranja Service Workera ---
 self.addEventListener('controllerchange', () => {
   console.log('[SW] Novi Service Worker preuzeo kontrolu. Aplikacija se može osvježiti za nove značajke.');
-
 });
-
