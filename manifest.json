@@ -9,12 +9,12 @@
   "theme_color": "#00ff88",
   "icons": [
     {
-      "src": "/nitro-icon.svg",
+      "src": "/nitro-analytics-pwa/nitro-icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml"
     },
     {
-      "src": "/nitro-icon.svg",
+      "src": "/nitro-analytics-pwa/nitro-icon.svg",
       "sizes": "192x192",
       "type": "image/svg+xml"
     }
@@ -22,15 +22,13 @@
   "shortcuts": [
     {
       "name": "Nova Analiza",
-      "url": "/nitro_analytics.html?action=new",
+      "url": "/nitro-analytics-pwa/index.html?action=new",
       "description": "Započni novu analizu i uvoz podataka"
     },
     {
       "name": "Posljednja Analiza",
-      "url": "/nitro_analytics.html?action=last",
+      "url": "/nitro-analytics-pwa/index.html?action=last",
       "description": "Prikaži posljednje spremljene rezultate"
     }
   ]
-
 }
-
