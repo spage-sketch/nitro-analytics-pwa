@@ -533,10 +533,10 @@ function initApp() {
 
     // PWA: Registracija Service Workera
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw.js', { scope: './' })
-            .then(reg => { console.log('SW registrovan. Scope:', reg.scope); })
-            .catch(err => console.error('SW registracija neuspješna (Sandbox error):', err));
-    }
+    navigator.serviceWorker.register('/nitro-analytics-pwa/sw.js', { scope: '/nitro-analytics-pwa/' })
+        .then(reg => { console.log('SW registrovan. Scope:', reg.scope); })
+        .catch(err => console.error('SW registracija neuspješna (Sandbox error):', err));
+}
 
     const lastData = loadAnalysis();
     if (!isOnline && lastData) {
@@ -560,3 +560,4 @@ window._nitro = { data, enriched, renderCharts };
 </script>
 </body>
 </html>
+
