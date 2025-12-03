@@ -1,12 +1,12 @@
-// Ime keša i verzija. Mijenjaš KEY kada ažuriraš fajlove.
-const CACHE_STATIC_KEY = 'nitro-pwa-static-v5'; // Povećana verzija
-const CACHE_CDN_KEY = 'nitro-pwa-cdn-v5'; // Povećana verzija
+// Ime keša i verzija.
+const CACHE_STATIC_KEY = 'nitro-pwa-static-v7'; // Povećana verzija za prisilni update
+const CACHE_CDN_KEY = 'nitro-pwa-cdn-v7'; // Povećana verzija
 
-// Statika za keširanje (HTML, SW, Manifest) - Putevi prilagođeni za GitHub Pages subfolder
+// Statika za keširanje (HTML, SW, Manifest) - Putanje su ROOT-relativne
 const staticAssets = [
-  '/nitro-analytics-pwa/index.html',
-  '/nitro-analytics-pwa/sw.js',
-  '/nitro-analytics-pwa/manifest.json',
+  '/index.html',
+  '/sw.js',
+  '/manifest.json',
 ];
 
 // CDN resursi koje koristimo (Chart.js, PapaParse)
@@ -27,10 +27,10 @@ self.addEventListener('install', event => {
           console.error('[SW] Greška pri keširanju statike:', err);
         });
       }),
-      // Keširanje CDN resursa (Popravljen TypeError uklanjanjem { mode: 'cors' })
+      // Keširanje CDN resursa (Fix: Uklonjen { mode: 'cors' })
       caches.open(CACHE_CDN_KEY).then(cache => {
         const cdnRequests = cdnAssets.map(url => {
-          return fetch(url).then(response => { // FIX: Uklonjen { mode: 'cors' }
+          return fetch(url).then(response => {
             if (!response || response.status !== 200) {
               console.warn(`[SW] CDN resurs nije keširan: ${url}`);
               return Promise.resolve();
@@ -110,9 +110,9 @@ self.addEventListener('fetch', event => {
     fetch(event.request).then(networkResponse => {
       // Keširaj novu verziju (Update keša)
       if (networkResponse && networkResponse.status === 200) {
-        // Provjeravamo i za root putanju i za statične asete
         const assetPath = url.pathname;
-        if (staticAssets.includes(assetPath) || assetPath === '/nitro-analytics-pwa/' || assetPath === '/nitro-analytics-pwa/index.html') {
+        // Provjeravamo i za root putanju i za statične asete
+        if (staticAssets.includes(assetPath)) {
            caches.open(CACHE_STATIC_KEY).then(cache => {
              cache.put(event.request, networkResponse.clone());
            });
@@ -126,8 +126,8 @@ self.addEventListener('fetch', event => {
           console.log(`[SW] Offline: Služenje iz keša: ${url.pathname}`);
           return cachedResponse;
         }
-        // U krajnjem slučaju, za nepoznate URL-ove, vrati početnu stranicu
-        return caches.match('/nitro-analytics-pwa/index.html');
+        // U krajnjem slučaju, vrati index.html
+        return caches.match('/index.html');
       });
     })
   );
