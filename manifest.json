@@ -2,7 +2,7 @@
   "name": "Nitro Anime Analytics",
   "short_name": "Nitro PWA",
   "description": "Profesionalna PWA za analizu MyAnimeList/AniList podataka. Radi offline!",
-  "start_url": "./nitro_analytics.html",
+  "start_url": "/nitro-analytics-pwa/nitro_analytics.html",,
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#050505",
@@ -31,4 +31,5 @@
       "description": "Prikaži posljednje spremljene rezultate"
     }
   ]
+
 }
