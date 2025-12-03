@@ -113,7 +113,7 @@ canvas{width:100% !important;height:300px !important;display:block}
       </div>
 
       <div class="card">
-        <div class="card-header">OCJENE vs ANILIST PROSJEK</div>
+        <div class="card-header">OCJENE vs API PROSJEK (Top 15 najveći JAZ)</div>
         <canvas id="vsChart"></canvas>
         <div id="vsError" class="no-data">Pokreni Shadow Fetch za usporedbu</div>
       </div>
@@ -145,13 +145,14 @@ canvas{width:100% !important;height:300px !important;display:block}
         <div class="card-header">COSINE PREPORUKE</div>
         <div id="recsContent" class="no-data">Pokreni Shadow Fetch za preporuke</div>
       </div>
+    </div> <!-- Kraj grid-full za Dubinsku, Žanrove, Preporuke -->
 
-      <div class="card">
+    <!-- Novi, široki pravokutnik za ACHIEVEMNTE -->
+    <div id="achievement-full-width-card" class="card" style="margin-top:18px;">
         <div class="card-header">ACHIEVEMENTI</div>
-        <div id="achievementsContent" style="text-align:center;padding:12px">Pokreni Shadow Fetch za badgeove</div>
-      </div>
+        <div id="achievementsContent" style="text-align:left;">Pokreni Shadow Fetch za badgeove</div>
     </div>
-
+    
     <div style="margin-top:18px" class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
         <div class="controls-row">
@@ -178,9 +179,13 @@ canvas{width:100% !important;height:300px !important;display:block}
 <script>
 // --- Chart global defaults (stable + nice colors)
 if (window.Chart) {
-  Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e6eef0';
-  Chart.defaults.borderColor = 'rgba(255,255,255,0.06)';
-  Chart.defaults.font.family = 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial';
+  // Postavljanje globalnih boja za Chart.js iz CSS varijabli
+  function setChartDefaults() {
+    Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e6eef0';
+    Chart.defaults.borderColor = getComputedStyle(document.documentElement).getPropertyValue('--line') || 'rgba(255,255,255,0.06)';
+    Chart.defaults.font.family = 'Inter, system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial';
+  }
+  setChartDefaults();
 }
 
 // state
@@ -192,7 +197,7 @@ let statusChartInstance, vsChartInstance, timelineChartInstance, genreChartInsta
 
 // helpers
 const el = id => document.getElementById(id);
-const setStatus = (html, isError=false) => el('statusMsg').innerHTML = isError ? `<span style="color:var(--red);">${html}</span>` : html;
+const setStatus = (html, isError=false) => el('statusMsg').innerHTML = isError ? `<span style=\"color:var(--red);\">${html}</span>` : html;
 const formatNum = v => (v==null || isNaN(v)) ? '—' : v;
 
 // PWA: OFFLINE POHRANA (LocalStorage)
@@ -246,6 +251,10 @@ themeBtn.onclick = () => {
   const isLight = document.body.classList.contains('light');
   localStorage.setItem('nitro_theme', isLight ? 'light' : 'dark');
   themeBtn.textContent = isLight ? '🌙 Dark' : '💡 Light';
+  
+  // OPTIMIZACIJA A: Ažuriraj Chart.js defaultne boje i ponovno iscrtaj grafove
+  if (window.Chart) setChartDefaults();
+  renderCharts();
 };
 
 // drop zone wiring
@@ -316,8 +325,8 @@ function normalizeStatus(s){
 
 // main
 function go(loadedData){
-  // Check if loadedData is raw (from file) or enriched (from LocalStorage)
-  if (loadedData.some(item => item.hasOwnProperty('malScore'))) {
+  // OPTIMIZACIJA C: Promijenjeno malScore u apiScore
+  if (loadedData.some(item => item.hasOwnProperty('apiScore'))) {
       enriched = loadedData;
       // Re-map to simple data format needed by some non-enriched functions
       data = loadedData.map(d => ({
@@ -327,7 +336,7 @@ function go(loadedData){
   } else {
       // Data is raw from file, need to initialize enriched structure
       data = loadedData;
-      enriched = loadedData.map(a => ({...a, apiGenres: a.tags || [], malScore: null}));
+      enriched = loadedData.map(a => ({...a, apiGenres: a.tags || [], apiScore: null})); // Inicijalizacija s apiScore
   }
 
   el('drop-zone').classList.add('hidden');
@@ -359,59 +368,125 @@ function updateStats(){
   el('tens').textContent = data.filter(a=>a.score===10).length;
 }
 
-// Shadow fetch (AniList GraphQL) — batch
-async function batchFetchAnimeData(malIds){
-  // build query
-  const queries = malIds.map((id,i) => `anime${i}: Media(idMal: ${id}, type: ANIME) { idMal title { romaji } genres averageScore }`).join('\n');
+// OPTIMIZACIJA B: Pomoćna funkcija za Shadow Fetch s eksponencijalnim backoffom
+async function fetchAnimeBatchWithRetry(batch, maxRetries = 3) {
+  // POPRAVAK: Filtriraj samo validne ID-jeve (> 0) PRIJE gradnje upita
+  const validBatch = batch.filter(id => id > 0);
+  if (validBatch.length === 0) return {};
+
+  const queries = validBatch.map((id, i) => `anime${i}: Media(idMal: ${id}, type: ANIME) { idMal title { romaji } genres averageScore }`).join('\n');
   const payload = { query: `query { ${queries} }` };
-  const res = await fetch('https://graphql.anilist.co', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-  const json = await res.json();
-  return json.data || {};
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      if (!navigator.onLine) throw new Error('Offline');
+      
+      const res = await fetch('https://graphql.anilist.co', { 
+        method:'POST', 
+        headers:{'Content-Type':'application/json'}, 
+        body: JSON.stringify(payload) 
+      });
+
+      // Provjeri 404/429
+      if (res.status === 404) {
+          console.error(`[AniList] Batch failed with 404. Invalid ID in query: ${validBatch.join(', ')}`);
+          // Ako dobijemo 404, ne pokušavamo ponovo - to je greška u ID-ju, ne privremeni problem
+          throw new Error('API status: 404 (Query Error)'); 
+      }
+      if (res.status === 429) { 
+        console.warn(`[AniList] Attempt ${attempt}: Rate limit hit. Retrying in ${attempt * 2}s...`);
+      } else if (!res.ok) {
+        throw new Error(`API status: ${res.status}`);
+      }
+      
+      const json = await res.json();
+      if (json.errors) throw new Error(json.errors[0].message);
+      
+      return json.data || {};
+
+    } catch (err) {
+      if (attempt === maxRetries || err.message === 'Offline' || err.message === 'API status: 404 (Query Error)') {
+        throw err; // Prestani pokušavati
+      }
+      // Eksponencijalni backoff čekanje: 2s, 4s, 6s
+      const delay = attempt * 2000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
 }
 
 el('shadowBtn').onclick = async () => {
   if (!isOnline) { setStatus('Offline: Shadow Fetch ne može raditi bez mreže.', true); return; }
 
   const btn = el('shadowBtn');
-  const malIds = enriched.filter(a => a.mal_id && !a.malScore).map(a => a.mal_id);
+  // OPTIMIZACIJA C: Promijenjeno malScore u apiScore
+  const malIds = enriched.filter(a => a.mal_id && !a.apiScore).map(a => a.mal_id);
   if(!malIds.length){ setStatus('Svi naslovi već obogaćeni!'); return; }
-  btn.disabled = true; btn.textContent='Fetching...'; setStatus('<div class="progress"><div id="bar" class="progress-bar" style="width:0%"></div></div><div id="log">Počinjem Shadow Fetch...</div>');
-  const batchSize = 20; let processed = 0;
   
-  for(let i=0;i<malIds.length;i+=batchSize){
-    const batch = malIds.slice(i, i+batchSize);
-    el('log').textContent = `Batch ${i+1}–${Math.min(i+batchSize, malIds.length)} od ${malIds.length}...`;
+  // 1. Inicijalizacija UI za Shadow Fetch
+  btn.disabled = true; 
+  btn.textContent = 'Fetching...'; 
+  el('bar').style.width = '0%'; // Reset progress bar
+  // Koristi statusMsg samo za tekstualni status
+  setStatus(`Počinjem Shadow Fetch za ${malIds.length} naslova...`); 
+  
+  const batchSize = 20; 
+  let processed = 0;
+  let successfulFetches = 0;
+  
+  for(let i=0; i < malIds.length; i += batchSize){
+    const batch = malIds.slice(i, i + batchSize);
+    const totalBatches = Math.ceil(malIds.length / batchSize);
+    const currentBatchNum = Math.floor(i / batchSize) + 1;
+    const currentBatchInfo = `Batch ${currentBatchNum}/${totalBatches}`;
     
-    if (!isOnline) { // Re-check network status during long fetch
+    if (!isOnline) { 
         setStatus('Shadow Fetch prekinut: Izgubljena mreža.', true);
         break;
     }
     
+    // POPRAVAK UX: Prikaz trenutnog batcha prije pokretanja
+    setStatus(`${currentBatchInfo} (Obrađujem...)`); 
+
     try{
-      const results = await batchFetchAnimeData(batch);
+      // Koristimo funkciju s provjerom validnih ID-jeva i retry logikom
+      const results = await fetchAnimeBatchWithRetry(batch, 3);
+      
+      if (Object.keys(results).length > 0) {
+        successfulFetches++;
+      }
+      
       Object.keys(results).forEach(k => {
         const anime = results[k];
         if(!anime) return;
-        const idx = parseInt(k.replace('anime',''));
-        const malId = batch[idx];
+        // Pronađi ID koristeći originalni batch (AniList vraća idMal)
+        const malId = anime.idMal; 
         const item = enriched.find(a => a.mal_id === malId);
         if(item){
           item.apiGenres = (anime.genres || item.apiGenres || []);
-          item.malScore = anime.averageScore ? (anime.averageScore/10).toFixed(2) : null;
+          // OPTIMIZACIJA C: Promijenjeno malScore u apiScore
+          item.apiScore = anime.averageScore ? (anime.averageScore/10).toFixed(2) : null;
         }
       });
     } catch(err){
-      console.warn('Batch fetch error', err);
-      // non-fatal: continue, but display message
-      setStatus('Dio batchova nije dohvaćen (mreža). Nastavljam...', true);
+      console.error('Batch fetch FAIL', err);
+      // POPRAVAK UX: Prikaz greške, ali status se odmah vraća na "Nastavljam" nakon kratke poruke
+      if (err.message.includes('404')) {
+        setStatus(`${currentBatchInfo} SKIPPED (Neispravan ID). Nastavljam...`, true);
+      } else {
+        setStatus(`${currentBatchInfo} FAILED: ${err.message}. Nastavljam...`, true);
+      }
+      // Kratka pauza za vizualni dojam greške
+      await new Promise(r => setTimeout(r, 500));
     }
+    
     processed += batch.length;
     el('bar').style.width = Math.min(100, Math.round(processed / malIds.length * 100)) + '%';
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 50)); // Mala odgoda između batchova
   }
   
   btn.disabled = false; btn.textContent = 'SHADOW FETCH (AniList)';
-  setStatus(`SHADOW FETCH ZAVRŠEN — obogaćeno ~${processed} naslova.`, false);
+  setStatus(`SHADOW FETCH ZAVRŠEN — obogaćeno ~${processed} naslova (${successfulFetches} uspješnih batch-eva).`, false);
   renderCharts(); renderInsights(); renderRecommendations(); renderAchievements();
   saveAnalysis(enriched); // Spremi obogaćenu analizu
 };
@@ -424,24 +499,73 @@ function renderCharts(){
 function renderStatusChart(){
   const counts = {}; data.forEach(a => counts[a.status] = (counts[a.status]||0)+1);
   const ctx = el('statusChart'); if(statusChartInstance) statusChartInstance.destroy();
-  statusChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
+  statusChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:Chart.defaults.color}} } } });
 }
 
 function renderTimelineChart(){
   const years = {}; enriched.forEach(a => { if(a.year>0 && a.status==='Completed') years[a.year] = (years[a.year]||0)+1; });
   const sorted = Object.entries(years).sort((a,b)=>a[0]-b[0]);
   const ctx = el('timelineChart'); if(timelineChartInstance) timelineChartInstance.destroy();
-  timelineChartInstance = new Chart(ctx, { type:'line', data:{ labels:sorted.map(x=>x[0]), datasets:[{ label:'Završeno', data:sorted.map(x=>x[1]), borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue'), backgroundColor:'rgba(0,217,255,0.12)', tension:.3, fill:true }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } }, x:{ ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } } }, plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
+  // Koristimo Chart.defaults.color
+  timelineChartInstance = new Chart(ctx, { type:'line', data:{ labels:sorted.map(x=>x[0]), datasets:[{ label:'Završeno', data:sorted.map(x=>x[1]), borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue'), backgroundColor:'rgba(0,217,255,0.12)', tension:.3, fill:true }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ color:Chart.defaults.color } }, x:{ ticks:{ color:Chart.defaults.color } } }, plugins:{legend:{labels:{color:Chart.defaults.color}} } } });
 }
 
 function renderVsChart(){
-  const valid = enriched.filter(a => a.score>0 && a.malScore);
+  // 1. Filter samo naslove s ocjenom i API prosjekom
+  const valid = enriched.filter(a => a.score > 0 && a.apiScore != null);
   const placeholder = el('vsError');
-  const ctx = el('vsChart'); if(vsChartInstance) vsChartInstance.destroy();
-  if(valid.length < 5){ placeholder.style.display='flex'; return; } placeholder.style.display='none';
-  // Izdvajamo samo prvih 15 za čitljivost
-  const top15 = valid.slice(0,15);
-  vsChartInstance = new Chart(ctx, { type:'bar', data:{ labels:top15.map(a=>a.title.length>24? a.title.slice(0,21)+'...' : a.title), datasets:[{label:'Tvoja ocjena', data:top15.map(a=>a.score), backgroundColor:'#00ff88'},{label:'AniList prosjek', data:top15.map(a=>parseFloat(a.malScore)), backgroundColor:'#ff0066'}] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ min:0, max:10, ticks:{ color:getComputedStyle(document.documentElement).getPropertyValue('--text') } } }, plugins:{legend:{labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
+  const ctx = el('vsChart'); 
+  
+  if(vsChartInstance) vsChartInstance.destroy();
+
+  if(valid.length < 5){ 
+      placeholder.style.display='flex'; 
+      return; 
+  } 
+  placeholder.style.display='none';
+  
+  // 2. Izračunaj apsolutni jaz (gap) i sortiraj prema njemu (najveći jaz prvi)
+  const sortedByGap = valid.map(a => ({
+      ...a,
+      gap: Math.abs(a.score - parseFloat(a.apiScore))
+  })).sort((a, b) => b.gap - a.gap);
+
+  // 3. Uzmi top 15 s najvećim jazom
+  const top15ByGap = sortedByGap.slice(0, 15);
+
+  // 4. Kreiranje grafa
+  vsChartInstance = new Chart(ctx, { 
+      type:'bar', 
+      data:{ 
+          labels: top15ByGap.map(a => a.title.length > 24 ? a.title.slice(0,21)+'...' : a.title), 
+          datasets:[
+              {
+                  label:'Tvoja ocjena', 
+                  data: top15ByGap.map(a => a.score), 
+                  backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--accent')
+              },
+              {
+                  label:'API Prosjek', 
+                  data: top15ByGap.map(a => parseFloat(a.apiScore)), 
+                  backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--red')
+              }
+          ] 
+      }, 
+      options:{ 
+          responsive:true, 
+          maintainAspectRatio:false, 
+          scales:{ 
+              y:{ 
+                  min: 0, 
+                  max: 10, 
+                  ticks:{ color:Chart.defaults.color } 
+              } 
+          }, 
+          plugins:{
+              legend:{labels:{color:Chart.defaults.color}} 
+          } 
+      } 
+  });
 }
 
 function renderGenreChart(){
@@ -449,7 +573,7 @@ function renderGenreChart(){
   const g = {}; enriched.forEach(a => (a.apiGenres||[]).forEach(x => g[x] = (g[x]||0)+1));
   const top = Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,10);
   if(top.length===0){ placeholder.style.display='flex'; return; } placeholder.style.display='none';
-  genreChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:top.map(x=>x[0]), datasets:[{ data:top.map(x=>x[1]), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800','#88ff00','#0088ff','#ff0088','#00ff00','#ffff00'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:getComputedStyle(document.documentElement).getPropertyValue('--text')}} } } });
+  genreChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:top.map(x=>x[0]), datasets:[{ data:top.map(x=>x[1]), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800','#88ff00','#0088ff','#ff0088','#00ff00','#ffff00'] }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'right', labels:{color:Chart.defaults.color}} } } });
 }
 
 // insights + achievements + personality
@@ -472,28 +596,90 @@ function determinePersonality(){
 function renderInsights(){
   const longest = data.reduce((a,b)=> b.totalEp > (a.totalEp||0) ? b : a, data[0]||{});
   el('insight-marathon').textContent = longest && longest.title ? `${longest.title} (${longest.totalEp} ep)` : 'N/A';
+  
   const tens = enriched.filter(a=>a.score===10);
-  const controversial = tens.length ? tens.sort((a,b)=> (a.malScore||10) - (b.malScore||10))[0] : null;
-  el('insight-controversial').textContent = controversial ? `${controversial.title} (${controversial.malScore ? parseFloat(controversial.malScore).toFixed(1) : '?' } prosjek)` : 'Nema 10/10';
+  // OPTIMIZACIJA C: Promijenjeno malScore u apiScore
+  const controversial = tens.length ? tens.sort((a,b)=> (parseFloat(a.apiScore)||10) - (parseFloat(b.apiScore)||10))[0] : null;
+  el('insight-controversial').textContent = controversial ? `${controversial.title} (${controversial.apiScore ? parseFloat(controversial.apiScore).toFixed(1) : '?' } prosjek)` : 'Nema 10/10';
+  
   const worst = data.filter(a=>a.score>0).reduce((a,b)=> a.score < b.score ? a : b, data[0]||{});
   el('insight-gap').textContent = worst && worst.title ? `${worst.title} (${worst.score}/10)` : 'N/A';
 }
 
 function renderRecommendations(){
   const c = el('recsContent');
-  if(enriched.filter(a=> (a.apiGenres||[]).length>0 && a.score>0).length < 10){ c.innerHTML = '<p style="color:var(--muted)">Nema dovoljno podataka za preporuke.</p>'; return; }
+  if(enriched.filter(a=> (a.apiGenres||[]).length>0 && a.score>0).length < 10){ c.innerHTML = '<p style=\"color:var(--muted)\">Nema dovoljno podataka za preporuke.</p>'; return; }
   // placeholder simple: top genre-based picks
-  c.innerHTML = '<p style="color:var(--muted)">Preporuke: (placeholder) — uskoro cosine similarity.</p>';
+  c.innerHTML = '<p style=\"color:var(--muted)\">Preporuke: (placeholder) — uskoro cosine similarity.</p>';
 }
 
 function renderAchievements(){
-  const c = el('achievementsContent'); const completed = parseInt(el('completed').textContent)||0; const mean = parseFloat(el('mean').textContent)||0; const tens = parseInt(el('tens').textContent)||0;
+  const c = el('achievementsContent'); 
+  const completed = parseInt(el('completed').textContent)||0; 
+  const mean = parseFloat(el('mean').textContent)||0; 
+  const tens = parseInt(el('tens').textContent)||0;
+  const days = parseInt(el('days').textContent)||0; // Dodajemo days
   const badges = [];
-  if(completed>=1000) badges.push('MyAnimeDeity'); else if(completed>=500) badges.push('Completionist Legend'); else if(completed>=250) badges.push('Veteran');
-  if(mean>8.8) badges.push('Generous Heart'); if(mean<6) badges.push('Elite Critic');
-  if(tens>30) badges.push('Masterpiece Hunter'); if(tens===0) badges.push('Zero Ten Purist');
-  if(data.filter(a=>a.score===1).length>15) badges.push('Doom Bringer');
-  c.innerHTML = badges.length ? badges.map(b=>`<span class="badge">${b}</span>`).join(' ') : '<div style="color:var(--muted)">Još nema badgeova.</div>';
+
+  // Pomoćne varijable
+  const droppedCount = data.filter(a => a.status === 'Dropped').length;
+  const watchingCount = data.filter(a => a.status === 'Watching').length;
+  
+  const allGenres = {};
+  enriched.forEach(a => (a.apiGenres || []).forEach(g => allGenres[g] = (allGenres[g] || 0) + 1));
+  const distinctGenres = Object.keys(allGenres).length;
+
+  // Pomoćna funkcija za pronalazak kontroverznih naslova
+  // Kontroverza: Tvoja ocjena je 3.0+ boda veća od API prosjeka
+  const controversialTitles = enriched.filter(a => a.score > 0 && a.apiScore != null)
+      .map(a => ({
+          title: a.title,
+          gap: a.score - parseFloat(a.apiScore)
+      }))
+      .filter(item => item.gap >= 3.0); 
+
+  // --- 1. Vrijeme i Kvantiteta (AŽURIRANO) ---
+  if(completed >= 1000) badges.push('MyAnimeDeity (1000+)'); 
+  else if(completed >= 500) badges.push('Completionist Legend (500+)'); 
+  else if(completed >= 250) badges.push('Veteran Viewer (250+)');
+  else if(completed >= 50) badges.push('Intermediate Viewer (50+)');
+  else if(completed >= 5) badges.push('The Tester (5+)'); 
+
+  if(days >= 100) badges.push('Time Traveler (100+ dana)');
+  else if(days >= 25) badges.push('Time Watcher (25+ dana)');
+  else if(days >= 1) badges.push('First Day (1+ dan)'); 
+
+  // --- 2. Kriticizam i Ukus (AŽURIRANO) ---
+  if(mean > 9.0) badges.push('Golden Standard (Prosjek > 9.0)'); 
+  else if(mean > 8.5) badges.push('Generous Heart (Prosjek > 8.5)'); 
+  
+  if(mean < 6.0 && completed > 50) badges.push('The Executioner (Prosjek < 6.0)');
+  else if(mean < 7.0 && completed > 25) badges.push('Soft Critic (Prosjek < 7.0)');
+  
+  if(tens >= 30) badges.push('Masterpiece Hunter (30x 10/10)');
+  else if(tens >= 1) badges.push('Starter Kit (Prva 10/10)'); 
+
+  if(data.filter(a=>a.score===1).length > 15) badges.push('Doom Bringer (15x 1/10)');
+  else if(data.filter(a=>a.score===1).length >= 5) badges.push('The Low Bar (5x 1/10)');
+
+  // --- 3. Navike i Raznolikost (NOVA SEKCIJA) ---
+  if (droppedCount >= 20) badges.push('The Quitter (20+ Dropova)');
+  else if (droppedCount >= 5) badges.push('The Chooser (5+ Dropova)');
+  
+  if (watchingCount >= 10) badges.push('Current Runner (10+ Watching)');
+  else if (watchingCount >= 3) badges.push('Active Watcher (3+ Watching)');
+  
+  if (distinctGenres >= 15 && completed >= 15) badges.push('Genre Explorer (15+ Žanrova)');
+
+  // --- 4. Shadow Fetch Insights ---
+  if(controversialTitles.length >= 5) {
+      badges.push(`Controversialist (${controversialTitles.length} izbora)`);
+  }
+  
+  // Prikaži
+  c.innerHTML = badges.length 
+      ? badges.map(b=>`<span class=\"badge\">${b}</span>`).join(' ') 
+      : '<div style=\"color:var(--muted)\">Nastavi s gledanjem i ocjenjivanjem da otkljušaš prve badgeove!</div>';
 }
 
 // export + infographic
@@ -502,7 +688,7 @@ el('exportBtn').onclick = () => {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nitro_v10_enriched.json'; a.click();
 };
 el('infoBtn').onclick = () => {
-  const html = `<!doctype html><html><body style="background:#000;color:#0f0;font-family:monospace;text-align:center;padding:50px;"><h1>NITRO ANALYTICS V10</h1><h2>${el('personality-title').textContent}</h2><p>Završeno: <strong>${el('completed').textContent}</strong></p><p>Prosjek: <strong>${el('mean').textContent}</strong></p><p>Epizoda: <strong>${el('eps').textContent}</strong> (≈ ${el('days').textContent} dana)</p><p>10/10: <strong>${el('tens').textContent}</strong></p><p style="margin-top:80px;color:#888;">Generated: ${new Date().toLocaleString('hr-HR')}</p></body></html>`;
+  const html = `<!doctype html><html><body style=\"background:#000;color:#0f0;font-family:monospace;text-align:center;padding:50px;\"><h1>NITRO ANALYTICS V10</h1><h2>${el('personality-title').textContent}</h2><p>Završeno: <strong>${el('completed').textContent}</strong></p><p>Prosjek: <strong>${el('mean').textContent}</strong></p><p>Epizoda: <strong>${el('eps').textContent}</strong> (≈ ${el('days').textContent} dana)</p><p>10/10: <strong>${el('tens').textContent}</strong></p><p style=\"margin-top:80px;color:#888;\">Generated: ${new Date().toLocaleString('hr-HR')}</p></body></html>`;
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], {type:'text/html'})); a.download = 'nitro_infographic.html'; a.click();
 };
 
