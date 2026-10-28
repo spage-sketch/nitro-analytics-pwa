@@ -1,34 +1,40 @@
 {
   "name": "Nitro Anime Analytics",
-  "short_name": "Nitro PWA",
-  "description": "Profesionalna PWA za analizu MyAnimeList/AniList podataka. Radi offline!",
-  "start_url": "/index.html",
+  "short_name": "Nitro Analytics",
+  "id": "./",
+  "description": "Analiza anime liste iz MyAnimeList izvoza, uz AniList ocjene i preporuke.",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#050505",
   "theme_color": "#00ff88",
   "icons": [
     {
-      "src": "/nitro-icon.svg",
-      "sizes": "512x512",
-      "type": "image/svg+xml"
+      "src": "./nitro-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
     },
     {
-      "src": "/nitro-icon.svg",
-      "sizes": "192x192",
-      "type": "image/svg+xml"
+      "src": "./nitro-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
     {
-      "name": "Nova Analiza",
-      "url": "/index.html?action=new",
-      "description": "Započni novu analizu i uvoz podataka"
+      "name": "Nova analiza",
+      "short_name": "Nova",
+      "url": "./index.html?action=new",
+      "description": "Učitaj novi MAL izvoz"
     },
     {
-      "name": "Posljednja Analiza",
-      "url": "/index.html?action=last",
-      "description": "Prikaži posljednje spremljene rezultate"
+      "name": "Posljednja analiza",
+      "short_name": "Posljednja",
+      "url": "./index.html?action=last",
+      "description": "Otvori zadnju lokalno spremljenu analizu"
     }
   ]
 }
