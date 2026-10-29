@@ -1,7 +1,7 @@
 'use strict';
 
 const CACHE_PREFIX = 'nitro-pwa-';
-const CACHE_STATIC = CACHE_PREFIX + 'static-v10';
+const CACHE_STATIC = CACHE_PREFIX + 'static-v15';
 const CACHE_CDN = CACHE_PREFIX + 'cdn-v10';
 const APP_BASE = new URL('./', self.registration.scope);
 const APP_ROOT = new URL('./', APP_BASE);

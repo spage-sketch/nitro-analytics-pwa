@@ -19,9 +19,11 @@ Zatim otvori `http://localhost:8000/`.
 - Podržani su MAL XML, CSV te komprimirani XML s nastavkom `.xml.gz` ako ga preglednik podržava.
 - Analiza, teme i AniList podaci spremaju se u `localStorage` trenutačnog preglednika i domene.
 - Izvezi JSON gumbom **EXPORT JSON**, a zatim ga vrati gumbom **OBNOVI JSON**; uvoz provjerava MAL ID-jeve i prijavljuje preskočene zapise.
-- **Shadow Fetch** šalje MAL ID-jeve AniListu i dohvaća javne žanrove i prosječnu ocjenu.
-- Preporuke AniListu šalju samo odabrane žanrove iz ocijenjenih naslova; MAL lista i ocjene ostaju u pregledniku.
+- **Shadow Fetch** AniListu šalje MAL ID-jeve; ručno povezivanje šalje naslove nepronađenih zapisa tek kad zatražiš pretragu. Kandidat se sprema nakon tvoje potvrde. Dohvaćaju se javni žanrovi, prosječna ocjena, oznake i podaci o formatu/sezoni.
+- Preporuke AniListu šalju samo odabrane žanrove iz ocijenjenih naslova; MAL ocjene i cijela lista ostaju u pregledniku.
 - Uvoz i spremljena analiza rade offline. AniList dohvat i preporuke zahtijevaju mrežu. Nakon prvog online učitavanja PWA predmemorira aplikaciju i dostupne biblioteke za offline pregled.
+
+Filteri po naslovu, statusu, godini na listi, godini izlaska, žanru, AniList oznaci i minimalnoj ocjeni osvježavaju KPI-jeve, grafikone i uvide; klik na graf statusa ili žanra sužava prikaz. Tablica prikazuje najviše 150 filtriranih naslova i vodi na MAL stranicu naslova.
 
 ## Datoteke
 
