@@ -1,0 +1,1414 @@
+// --- Chart global defaults (stable + nice colors)
+if (window.Chart) {
+  // Postavljanje globalnih boja za Chart.js iz CSS varijabli
+  function setChartDefaults() {
+    Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text') || '#e6eef0';
+    Chart.defaults.borderColor = getComputedStyle(document.documentElement).getPropertyValue('--line') || 'rgba(255,255,255,0.06)';
+    Chart.defaults.font.family = 'Inter, system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial';
+  }
+  setChartDefaults();
+}
+
+// state
+const LAST_ANALYSIS_KEY = 'nitro_last_enriched_data';
+let isOnline = navigator.onLine;
+
+let data = [], enriched = [];
+let statusChartInstance, vsChartInstance, timelineChartInstance, genreChartInstance;
+
+// helpers
+const el = id => document.getElementById(id);
+function setStatus(message, isError=false){
+  const status = el('statusMsg');
+  status.textContent = String(message ?? '');
+  status.style.color = isError ? 'var(--red)' : 'var(--muted)';
+}
+const formatNum = v => (v==null || isNaN(v)) ? '—' : v;
+
+// PWA: OFFLINE POHRANA (IndexedDB s migracijom iz LocalStorage-a)
+const STORAGE_DB_NAME = 'nitro-anime-analytics';
+const STORAGE_DB_VERSION = 1;
+const STORAGE_STORE_NAME = 'key-value';
+const ANALYSIS_FALLBACK_KEY = LAST_ANALYSIS_KEY + '_idb_fallback';
+let storageDbPromise = null;
+
+function openStorageDb(){
+  if (!('indexedDB' in window)) return Promise.reject(new Error('IndexedDB nije dostupan.'));
+  if (!storageDbPromise) {
+    storageDbPromise = new Promise((resolve, reject) => {
+      const request = indexedDB.open(STORAGE_DB_NAME, STORAGE_DB_VERSION);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains(STORAGE_STORE_NAME)) request.result.createObjectStore(STORAGE_STORE_NAME);
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        db.onversionchange = () => db.close();
+        resolve(db);
+      };
+      request.onerror = () => reject(request.error || new Error('Ne mogu otvoriti IndexedDB.'));
+      request.onblocked = () => reject(new Error('IndexedDB je blokiran drugim prozorom aplikacije.'));
+    }).catch(error => {
+      storageDbPromise = null;
+      throw error;
+    });
+  }
+  return storageDbPromise;
+}
+
+async function readStoredValue(key){
+  const db = await openStorageDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORAGE_STORE_NAME, 'readonly');
+    const request = transaction.objectStore(STORAGE_STORE_NAME).get(key);
+    request.onsuccess = () => resolve(request.result ?? null);
+    request.onerror = () => reject(request.error || new Error('Ne mogu pročitati IndexedDB zapis.'));
+    transaction.onabort = () => reject(transaction.error || new Error('Čitanje iz IndexedDB-a je prekinuto.'));
+  });
+}
+
+async function writeStoredValue(key, value){
+  const db = await openStorageDb();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORAGE_STORE_NAME, 'readwrite');
+    transaction.objectStore(STORAGE_STORE_NAME).put(value, key);
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error || new Error('Ne mogu spremiti IndexedDB zapis.'));
+    transaction.onabort = () => reject(transaction.error || new Error('Spremanje u IndexedDB je prekinuto.'));
+  });
+}
+
+function normalizeStoredAnalysis(value){
+  if (Array.isArray(value)) return value.length ? {data:value, savedAt:0} : null;
+  if (!value || typeof value !== 'object' || !Array.isArray(value.data) || !value.data.length) return null;
+  return {data:value.data, savedAt:Number(value.savedAt) || 0};
+}
+
+function readLocalAnalysis(key){
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const normalized = normalizeStoredAnalysis(JSON.parse(raw));
+    if (!normalized) localStorage.removeItem(key);
+    return normalized;
+  } catch (error) {
+    console.warn('PWA: Ne mogu pročitati lokalnu sigurnosnu kopiju:', error);
+    try { localStorage.removeItem(key); } catch (_) {}
+    return null;
+  }
+}
+
+function removeLocalAnalysis(key){
+  try { localStorage.removeItem(key); } catch (_) {}
+}
+
+async function saveAnalysis(data){
+  const record = {version:1, savedAt:Date.now(), data};
+  try {
+    await writeStoredValue(LAST_ANALYSIS_KEY, record);
+    removeLocalAnalysis(ANALYSIS_FALLBACK_KEY);
+    removeLocalAnalysis(LAST_ANALYSIS_KEY);
+    console.log('PWA: Analiza spremljena u IndexedDB za offline rad.');
+    return true;
+  } catch (error) {
+    console.error('PWA: IndexedDB spremanje nije uspjelo; pokušavam lokalnu sigurnosnu kopiju:', error);
+    try {
+      localStorage.setItem(ANALYSIS_FALLBACK_KEY, JSON.stringify(record));
+      return true;
+    } catch (fallbackError) {
+      console.error('PWA: Ni lokalna sigurnosna kopija nije spremljena:', fallbackError);
+      return false;
+    }
+  }
+}
+
+async function loadAnalysis(){
+  let indexedRecord = null;
+  try {
+    indexedRecord = normalizeStoredAnalysis(await readStoredValue(LAST_ANALYSIS_KEY));
+  } catch (error) {
+    console.warn('PWA: Ne mogu učitati IndexedDB analizu:', error);
+  }
+
+  const fallbackRecord = readLocalAnalysis(ANALYSIS_FALLBACK_KEY);
+  const legacyRecord = readLocalAnalysis(LAST_ANALYSIS_KEY);
+  const localRecord = fallbackRecord && (!legacyRecord || fallbackRecord.savedAt >= legacyRecord.savedAt)
+    ? fallbackRecord
+    : legacyRecord;
+  const localKey = localRecord === fallbackRecord ? ANALYSIS_FALLBACK_KEY : LAST_ANALYSIS_KEY;
+  const selected = localRecord && (!indexedRecord || localRecord.savedAt > indexedRecord.savedAt)
+    ? localRecord
+    : indexedRecord;
+
+  if (!selected) return null;
+  if (selected === localRecord) {
+    try {
+      await writeStoredValue(LAST_ANALYSIS_KEY, {version:1, ...selected});
+      removeLocalAnalysis(localKey);
+    } catch (error) {
+      console.warn('PWA: Analiza je učitana iz lokalne sigurnosne kopije; migracija će se pokušati ponovno:', error);
+    }
+  } else {
+    removeLocalAnalysis(ANALYSIS_FALLBACK_KEY);
+    removeLocalAnalysis(LAST_ANALYSIS_KEY);
+  }
+  return selected.data;
+}
+function showOfflinePrompt() {
+    el('drop-zone').classList.add('hidden');
+    el('dashboard').classList.add('hidden');
+    el('offline-data-prompt').style.display = 'block';
+}
+
+// PWA: OFFLINE INDIKATOR
+function updateOnlineStatus() {
+    isOnline = navigator.onLine;
+    const indicator = el('status-indicator');
+    indicator.textContent = isOnline ? 'ONLINE 🌐' : 'OFFLINE 🔌';
+    indicator.style.backgroundColor = isOnline ? 'var(--accent)' : 'var(--red)';
+    indicator.style.color = isOnline ? 'var(--bg)' : '#fff';
+    el('offline-warning').style.display = isOnline ? 'none' : 'block';
+    el('shadowBtn').disabled = !isOnline;
+    updateAniListControls();
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+
+// Theme toggle (persist)
+const themeBtn = el('themeToggle');
+(function initTheme(){
+  let t = null;
+  try { t = localStorage.getItem('nitro_theme'); } catch (_) {}
+  t ||= window.matchMedia && window.matchMedia('(prefers-color-scheme:light)').matches ? 'light' : 'dark';
+  if (t === 'light') document.body.classList.add('light');
+  themeBtn.textContent = document.body.classList.contains('light') ? '🌙 Tamna tema' : '💡 Svijetla tema';
+})();
+themeBtn.onclick = () => {
+  document.body.classList.toggle('light');
+  const isLight = document.body.classList.contains('light');
+  try { localStorage.setItem('nitro_theme', isLight ? 'light' : 'dark'); } catch (_) {}
+  themeBtn.textContent = isLight ? '🌙 Tamna tema' : '💡 Svijetla tema';
+
+  // OPTIMIZACIJA A: Ažuriraj Chart.js defaultne boje i ponovno iscrtaj grafove
+  if (window.Chart) setChartDefaults();
+  renderCharts();
+};
+
+// drop zone wiring
+const dropZone = el('drop-zone');
+const fileInput = el('fileInput');
+dropZone.onclick = () => fileInput.click();
+fileInput.addEventListener('click', event => event.stopPropagation());
+fileInput.onchange = e => {
+  const file = e.target.files?.[0];
+  e.target.value = '';
+  void processFile(file);
+};
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('highlight');});
+dropZone.addEventListener('dragleave', e => { e.preventDefault(); dropZone.classList.remove('highlight');});
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('highlight'); if(e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); });
+
+// Parse XML, CSV and compressed MAL XML exports.
+async function processFile(file){
+  if(!file) return;
+  const maxImportBytes = 25 * 1024 * 1024;
+  if (file.size > maxImportBytes) { setStatus('Datoteka je veća od 25 MB.', true); return; }
+  el('offline-data-prompt').style.display = 'none';
+  const fileName = file.name.toLowerCase();
+  const isJson = fileName.endsWith('.json');
+  const isGzipXml = fileName.endsWith('.xml.gz');
+  const isXml = isGzipXml || fileName.endsWith('.xml');
+  if (!isXml && !isJson && !fileName.endsWith('.csv')) {
+    setStatus('Odaberi MAL XML, CSV, komprimirani XML (.xml.gz) ili JSON sigurnosnu kopiju.', true);
+    return;
+  }
+
+  setStatus(`Učitavam: ${file.name}...`);
+  try {
+    let text;
+    if (isGzipXml) {
+      if (!('DecompressionStream' in window)) throw new Error('Ovaj preglednik ne podržava izravno čitanje .xml.gz datoteka. Raspakiraj je i učitaj XML.');
+      const decompressed = file.stream().pipeThrough(new DecompressionStream('gzip'));
+      const reader = decompressed.getReader();
+      const decoder = new TextDecoder();
+      const chunks = [];
+      let decompressedBytes = 0;
+      try {
+        while (true) {
+          const {done, value} = await reader.read();
+          if (done) break;
+          decompressedBytes += value.byteLength;
+          if (decompressedBytes > maxImportBytes) {
+            await reader.cancel().catch(() => {});
+            throw new Error('Raspakirani XML je veći od 25 MB.');
+          }
+          chunks.push(decoder.decode(value, {stream: true}));
+        }
+        chunks.push(decoder.decode());
+      } finally {
+        reader.releaseLock();
+      }
+      text = chunks.join('');
+    } else {
+      text = await file.text();
+    }
+
+    if (isJson) {
+      const result = validateBackupPayload(JSON.parse(text));
+      await go(result.rows);
+      setStatus('Vraćeno ' + result.rows.length + ' naslova iz JSON sigurnosne kopije.' + (result.skipped ? ' Preskočeno zapisa: ' + result.skipped + '.' : ''));
+      return;
+    }
+
+    if (isXml) {
+      await parseXML(text);
+      return;
+    }
+
+    const parsed = Papa.parse(text, {
+      header: true,
+      skipEmptyLines: 'greedy',
+      transformHeader: header => header.replace(/^\uFEFF/, '').trim().toLowerCase()
+    });
+    const fields = parsed.meta.fields || [];
+    if (!fields.some(field => ['series_animedb_id', 'mal_id'].includes(field))) {
+      throw new Error('CSV nema stupac series_animedb_id ili mal_id. Izvezi anime listu kao CSV iz MyAnimeList-a.');
+    }
+    if (!fields.some(field => ['series_title', 'title'].includes(field))) {
+      throw new Error('CSV nema stupac series_title ili title. Provjeri MAL CSV format.');
+    }
+    if (parsed.errors.length && !parsed.data.length) throw new Error('CSV se ne može parsirati: ' + parsed.errors[0].message);
+    const candidates = parsed.data.map(normalizeRow);
+    const rows = candidates.filter(row => row.mal_id);
+    const skipped = candidates.length - rows.length;
+    if (!rows.length) throw new Error('CSV ima očekivane stupce, ali nema valjanih MAL ID-jeva. Provjeri izvoz.');
+    await go(rows);
+    const warnings = [];
+    if (skipped) warnings.push('preskočeno nevaljanih redaka: ' + skipped);
+    if (parsed.errors.length) warnings.push('upozorenja CSV parsera: ' + parsed.errors.length);
+    setStatus('Uvezeno ' + rows.length + ' naslova.' + (warnings.length ? ' ' + warnings.join('; ') + '.' : ''));
+  } catch(err) {
+    console.error(err);
+    setStatus(`Greška pri učitavanju: ${err.message || 'nepoznata greška'}`, true);
+  }
+}
+
+async function parseXML(text){
+  const xml = new DOMParser().parseFromString(text, 'text/xml');
+  if (xml.querySelector('parsererror')) throw new Error('XML datoteka nije ispravna.');
+  const entries = Array.from(xml.querySelectorAll('anime'));
+  if (!entries.length) throw new Error('XML ne sadrži anime zapise. Provjeri da si izvezao anime listu.');
+  const rows = entries.map(a => ({
+    title: a.querySelector('series_title')?.textContent?.trim() || 'Unknown',
+    mal_id: parseNonNegativeInt(a.querySelector('series_animedb_id')?.textContent || '0') || null,
+    score: parseScore(a.querySelector('my_score')?.textContent || '0'),
+    status: normalizeStatus(a.querySelector('my_status')?.textContent || ''),
+    watched: parseNonNegativeInt(a.querySelector('my_watched_episodes')?.textContent || '0'),
+    totalEp: parseNonNegativeInt(a.querySelector('series_episodes')?.textContent || '0'),
+    malType: a.querySelector('series_type')?.textContent?.trim() || '',
+    malStartDate: a.querySelector('series_start')?.textContent?.trim() || '',
+    malEndDate: a.querySelector('series_end')?.textContent?.trim() || '',
+    releaseYear: extractYear(a.querySelector('series_start')?.textContent),
+    tags: (a.querySelector('my_tags')?.textContent || '').split(',').map(t=>t.trim()).filter(Boolean),
+    year: extractYear(a.querySelector('my_finish_date')?.textContent, a.querySelector('my_start_date')?.textContent)
+  })).filter(a => a.mal_id > 0);
+  if (!rows.length) throw new Error('XML nema valjanih MAL anime ID-jeva.');
+  await go(rows);
+  const skipped = entries.length - rows.length;
+  if (skipped) setStatus('Uvezeno ' + rows.length + ' naslova; preskočeno nevaljanih XML zapisa: ' + skipped + '.', true);
+}
+
+function parseNonNegativeInt(value){
+  const raw = String(value ?? '').trim();
+  if (!/^\d+$/.test(raw)) return 0;
+  const parsed = Number(raw);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function parseScore(value){
+  const parsed = Number.parseInt(value, 10);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 10 ? parsed : 0;
+}
+
+function extractYear(...values){
+  for (const value of values) {
+    const year = Number.parseInt(String(value ?? '').slice(0, 4), 10);
+    if (Number.isInteger(year) && year > 0) return year;
+  }
+  return 0;
+}
+
+function normalizeRow(row){
+  const value = (...keys) => {
+    for (const key of keys) {
+      const found = row[key.toLowerCase()];
+      if (found !== undefined && found !== null && String(found).trim() !== '') return found;
+    }
+    return '';
+  };
+  const rawTags = value('my_tags', 'tags');
+  const malStartDate = String(value('series_start', 'mal_start_date') || '').trim();
+  const malEndDate = String(value('series_end', 'mal_end_date') || '').trim();
+  const malType = String(value('series_type', 'mal_type', 'type') || '').trim();
+  const finishDate = value('my_finish_date');
+  const startDate = value('my_start_date');
+  const malId = parseNonNegativeInt(value('series_animedb_id', 'mal_id'));
+  return {
+    title: String(value('series_title', 'title') || 'Unknown').trim(),
+    mal_id: malId > 0 ? malId : null,
+    score: parseScore(value('my_score', 'score')),
+    status: normalizeStatus(value('my_status', 'status')),
+    watched: parseNonNegativeInt(value('my_watched_episodes', 'watched')),
+    totalEp: parseNonNegativeInt(value('series_episodes', 'totalep')),
+    malType,
+    malStartDate,
+    malEndDate,
+    releaseYear: extractYear(value('releaseyear'), malStartDate),
+    tags: String(rawTags).split(',').map(tag => tag.trim()).filter(Boolean),
+    year: extractYear(value('year'), finishDate, startDate)
+  };
+}
+
+function normalizeStatus(value){
+  const key = String(value ?? '').trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  const statuses = {
+    '1': 'Watching', 'watching': 'Watching', 'currently watching': 'Watching',
+    '2': 'Completed', 'completed': 'Completed', 'complete': 'Completed',
+    '3': 'On-Hold', 'on hold': 'On-Hold',
+    '4': 'Dropped', 'dropped': 'Dropped',
+    '6': 'Plan to Watch', 'plan to watch': 'Plan to Watch', 'planning to watch': 'Plan to Watch'
+  };
+  return statuses[key] || 'Unknown';
+}
+
+function validateBackupPayload(payload){
+  if (!Array.isArray(payload)) throw new Error('JSON sigurnosna kopija mora biti lista anime zapisa.');
+  if (!payload.length) throw new Error('JSON sigurnosna kopija je prazna.');
+  if (payload.length > 100000) throw new Error('JSON sadrži više od 100.000 zapisa.');
+  const rows = payload.filter(item => item && typeof item === 'object' && !Array.isArray(item)).map(item => {
+    const malId = parseNonNegativeInt(item.mal_id ?? item.series_animedb_id ?? item.idMal);
+    if (!malId) return null;
+    const rawTags = item.tags ?? item.my_tags ?? [];
+    return {
+      ...item, mal_id: malId,
+      title: String(item.title ?? item.series_title ?? 'Unknown').trim().slice(0, 300) || 'Unknown',
+      score: parseScore(item.score ?? item.my_score),
+      status: normalizeStatus(item.status ?? item.my_status),
+      watched: parseNonNegativeInt(item.watched ?? item.my_watched_episodes),
+      totalEp: parseNonNegativeInt(item.totalEp ?? item.series_episodes),
+      tags: Array.isArray(rawTags) ? rawTags.filter(tag => typeof tag === 'string') : String(rawTags).split(',').map(tag => tag.trim()).filter(Boolean)
+    };
+  }).filter(Boolean);
+  if (!rows.length) throw new Error('JSON nema valjanih MAL ID-jeva. Uvezi JSON izvezen gumbom EXPORT JSON.');
+  return {rows, skipped: payload.length - rows.length};
+}
+function normalizeStoredAnime(item){
+  const rawScore = item.aniListAverageScore ?? item.apiScore ?? item.malScore ?? null;
+  const score = rawScore === null || rawScore === '' ? null : Number(rawScore);
+  const {apiScore, malScore, ...record} = item;
+  let apiGenres = Array.isArray(record.apiGenres) ? record.apiGenres.filter(g => typeof g === 'string') : [];
+  if (score === null && Array.isArray(record.tags) && apiGenres.join('|') === record.tags.join('|')) apiGenres = [];
+  const aniListAverageScore = Number.isFinite(score) && score >= 0 && score <= 100 ? score : null;
+  const apiTags = Array.isArray(record.apiTags) ? record.apiTags.filter(tag => tag && typeof tag.name === 'string').map(tag => ({
+    name: tag.name, rank: Number.isFinite(Number(tag.rank)) ? Number(tag.rank) : 0,
+    isMediaSpoiler: tag.isMediaSpoiler === true, isGeneralSpoiler: tag.isGeneralSpoiler === true
+  })) : [];
+  const aniListId = parseNonNegativeInt(record.aniListId) || null;
+  const hasAniListMedia = aniListId !== null || aniListAverageScore !== null || apiGenres.length > 0 || apiTags.length > 0;
+  const fetched = record.aniListFetched === true || hasAniListMedia;
+  const statuses = ['pending', 'matched', 'not_found', 'error'];
+  const aniListMatchStatus = statuses.includes(record.aniListMatchStatus)
+    ? record.aniListMatchStatus
+    : hasAniListMedia ? 'matched' : fetched ? 'not_found' : 'pending';
+  const malId = parseNonNegativeInt(record.mal_id ?? record.idMal);
+  return {
+    ...record,
+    mal_id: malId > 0 ? malId : null,
+    score: parseScore(record.score),
+    watched: parseNonNegativeInt(record.watched),
+    totalEp: parseNonNegativeInt(record.totalEp),
+    malType: String(record.malType || '').trim(),
+    malStartDate: String(record.malStartDate || '').trim(),
+    malEndDate: String(record.malEndDate || '').trim(),
+    releaseYear: parseNonNegativeInt(record.releaseYear) || parseNonNegativeInt(record.aniListStartDate?.year) || extractYear(record.malStartDate),
+    tags: Array.isArray(record.tags) ? record.tags.filter(tag => typeof tag === 'string') : [],
+    apiGenres,
+    aniListFetched: fetched,
+    aniListId,
+    aniListMatchStatus,
+    aniListLastCheckedAt: String(record.aniListLastCheckedAt || ''),
+    apiTags,
+    aniListFormat: String(record.aniListFormat || ''),
+    aniListSeason: String(record.aniListSeason || ''),
+    aniListSeasonYear: parseNonNegativeInt(record.aniListSeasonYear),
+    aniListStartDate: record.aniListStartDate && typeof record.aniListStartDate === 'object' ? record.aniListStartDate : null,
+    aniListEpisodes: parseNonNegativeInt(record.aniListEpisodes),
+    aniListDuration: parseNonNegativeInt(record.aniListDuration),
+    aniListStatus: String(record.aniListStatus || ''),
+    aniListCountry: String(record.aniListCountry || ''),
+    aniListSource: String(record.aniListSource || ''),
+    aniListAverageScore
+  };
+}
+
+// main
+async function go(loadedData){
+  if (!Array.isArray(loadedData) || !loadedData.length) {
+    setStatus('Nema anime zapisa za prikaz.', true);
+    return false;
+  }
+
+  const hasEnrichment = loadedData.some(item => item && ['aniListAverageScore', 'aniListFetched', 'aniListMatchStatus', 'aniListId', 'apiGenres', 'apiTags', 'apiScore', 'malScore'].some(key => Object.prototype.hasOwnProperty.call(item, key)));
+  if (hasEnrichment) {
+    enriched = loadedData.filter(item => item && typeof item === 'object').map(normalizeStoredAnime);
+  } else {
+    enriched = loadedData.filter(item => item && typeof item === 'object').map(anime => ({
+      ...anime,
+      apiGenres: [],
+      apiTags: [],
+      aniListFetched: false,
+      aniListId: null,
+      aniListMatchStatus: 'pending',
+      aniListAverageScore: null
+    }));
+  }
+  if (!enriched.length) {
+    setStatus('Učitao sam datoteku, ali nisam našao valjane anime zapise.', true);
+    return false;
+  }
+  data = enriched.map(anime => ({...anime, tags: Array.isArray(anime.tags) ? anime.tags : []}));
+
+  el('drop-zone').classList.add('hidden');
+  el('offline-data-prompt').style.display = 'none';
+  el('dashboard').classList.remove('hidden');
+  populateFilters();
+  updateAniListControls();
+
+  updateStats();
+  renderCharts();
+  determinePersonality();
+  renderInsights();
+  void renderRecommendations({fetchFresh: false});
+  renderAchievements();
+
+  const saved = await saveAnalysis(enriched);
+  setStatus(`Analiza spremna.${isOnline ? ' Pokreni Shadow Fetch za AniList podatke.' : ''}${saved ? '' : ' Nije ju bilo moguće spremiti lokalno; izvezi JSON za sigurnosnu kopiju.'}`, !saved);
+  return true;
+}
+
+// stats + helpers
+function getFilteredAnime(){
+  const query=el('filterSearch')?.value.trim().toLocaleLowerCase()||'';
+  const releaseYear=el('filterReleaseYear')?.value||'';
+  const aniListTag=el('filterAniListTag')?.value||'';
+  const status=el('filterStatus')?.value||'', year=el('filterYear')?.value||'', genre=el('filterGenre')?.value||'', min=Number(el('filterScore')?.value||0);
+  return enriched.filter(a=>(!query||String(a.title||'').toLocaleLowerCase().includes(query))&&(!status||a.status===status)&&(!year||String(a.year||'')===year)&&(!releaseYear||String(a.releaseYear||'')===releaseYear)&&(!aniListTag||(a.apiTags||[]).some(tag=>tag.name===aniListTag&&!tag.isMediaSpoiler&&!tag.isGeneralSpoiler))&&(!genre||(a.apiGenres||[]).includes(genre)||(a.tags||[]).includes(genre))&&(!min||Number(a.score)>=min));
+}
+function fillFilter(select,values,label){
+  const prior=select.value; select.replaceChildren(new Option(label,''));
+  [...new Set(values.filter(v=>v!==null&&v!==undefined&&String(v).trim()).map(String))].sort((a,b)=>a.localeCompare(b,'hr',{numeric:true})).forEach(v=>select.add(new Option(v,v)));
+  if([...select.options].some(o=>o.value===prior))select.value=prior;
+}
+function populateFilters(){
+  fillFilter(el('filterStatus'),enriched.map(a=>a.status),'Svi statusi');
+  fillFilter(el('filterYear'),enriched.map(a=>Number(a.year)>0?a.year:''),'Sve godine');
+  fillFilter(el('filterReleaseYear'),enriched.map(a=>Number(a.releaseYear)>0?a.releaseYear:''),'Sve godine izlaska');
+  fillFilter(el('filterGenre'),enriched.flatMap(a=>[...(a.apiGenres||[]),...(a.tags||[])]),'Svi žanrovi');
+  fillFilter(el('filterAniListTag'),enriched.flatMap(a=>(a.apiTags||[]).filter(tag=>!tag.isMediaSpoiler&&!tag.isGeneralSpoiler).map(tag=>tag.name)),'Sve AniList oznake');
+  renderAnimeRows();
+}
+function renderAnimeRows(){
+  const visible=getFilteredAnime(), body=el('animeRows'), fragment=document.createDocumentFragment();
+  const displayLimit=150, displayed=visible.slice(0,displayLimit); displayed.forEach(a=>{
+    const row=document.createElement('tr'), cell=row.insertCell(), link=document.createElement('a');
+    link.textContent=a.title||'Nepoznat naslov'; link.href='https://myanimelist.net/anime/'+encodeURIComponent(a.mal_id); link.target='_blank'; link.rel='noopener noreferrer'; cell.append(link);
+    row.insertCell().textContent=a.status||'Nepoznat'; row.insertCell().textContent=Number(a.year)>0?a.year:'—'; row.insertCell().textContent=Number(a.releaseYear)>0?a.releaseYear:'—'; row.insertCell().textContent=[a.malType||a.aniListFormat,a.aniListSeason,a.aniListSeasonYear].filter(Boolean).join(' · ')||'—'; const linkState={matched:'Povezano',not_found:'Nije pronađeno',error:'Greška — ponovit će se',pending:'Na čekanju'}; row.insertCell().textContent=linkState[a.aniListMatchStatus]||'Na čekanju'; const visibleApiTags=(a.apiTags||[]).filter(tag=>!tag.isMediaSpoiler&&!tag.isGeneralSpoiler).sort((x,y)=>y.rank-x.rank).slice(0,6).map(tag=>tag.name); row.insertCell().textContent=visibleApiTags.join(', ')||'—'; row.insertCell().textContent=Number(a.score)>0?a.score+'/10':'—';
+    row.insertCell().textContent=(a.watched||0)+(a.totalEp?'/'+a.totalEp:''); row.insertCell().textContent=[...new Set([...(a.apiGenres||[]),...(a.tags||[])])].join(', ')||'—'; fragment.append(row);
+  });
+  body.replaceChildren(fragment); el('filterSummary').textContent='Prikazano '+displayed.length+' od '+visible.length+' filtriranih naslova ('+enriched.length+' ukupno).'+(visible.length>displayLimit?' Prikazuju se prvih 150.':'');
+}
+function refreshFilteredView(){
+  if(!enriched.length)return; renderAnimeRows(); updateStats(); renderCharts(); renderInsights(); void renderRecommendations({fetchFresh:false});
+}
+function initializeFilters(){
+  ['filterSearch','filterStatus','filterYear','filterReleaseYear','filterGenre','filterAniListTag','filterScore'].forEach(id=>el(id).addEventListener(id==='filterSearch'?'input':'change',refreshFilteredView));
+  el('clearFiltersBtn').addEventListener('click',()=>{el('filterSearch').value='';['filterStatus','filterYear','filterReleaseYear','filterGenre','filterAniListTag'].forEach(id=>el(id).value='');el('filterScore').value='0';refreshFilteredView();});
+}
+function updateStats(){
+  const visible=getFilteredAnime();
+  const comp = visible.filter(a=>a.status==='Completed').length;
+  const scored = visible.filter(a=>a.score>0);
+  const mean = scored.length ? (scored.reduce((s,a)=>s+a.score,0) / scored.length) : 0;
+  const eps = visible.reduce((s,a)=>s + (a.watched||0), 0);
+  const days = Math.round(eps * 24 / 1440);
+  el('completed').textContent = comp;
+  el('mean').textContent = mean.toFixed(2);
+  el('eps').textContent = eps;
+  el('days').textContent = days;
+  el('tens').textContent = visible.filter(a=>a.score===10).length;
+}
+
+let aniListRequestGapMs = 2200;
+let aniListNextRequestAt = 0;
+
+function waitFor(ms){ return new Promise(resolve => setTimeout(resolve, Math.max(0, ms))); }
+
+function getAniListResetAt(response){
+  const value = response.headers.get('X-RateLimit-Reset');
+  if (!value) return 0;
+  const numeric = Number(value);
+  if (Number.isFinite(numeric) && numeric > 0) return numeric > 1000000000 ? numeric * 1000 : Date.now() + numeric * 1000;
+  const date = Date.parse(value);
+  return Number.isFinite(date) ? date : 0;
+}
+
+function retryDelay(response, attempt){
+  const value = response.headers.get('Retry-After');
+  let delay = 1000 * (2 ** (attempt - 1));
+  if (value) {
+    const seconds = Number(value);
+    if (Number.isFinite(seconds)) delay = Math.max(0, seconds * 1000);
+    else {
+      const date = Date.parse(value);
+      if (Number.isFinite(date)) delay = Math.max(0, date - Date.now());
+    }
+  }
+  const resetAt = getAniListResetAt(response);
+  if (resetAt > Date.now()) delay = Math.max(delay, resetAt - Date.now());
+  return Math.min(300000, delay);
+}
+
+function scheduleAniListRequest(response){
+  const limit = Number(response.headers.get('X-RateLimit-Limit'));
+  if (Number.isFinite(limit) && limit > 0) aniListRequestGapMs = Math.max(300, Math.ceil(60000 / limit) + 200);
+  const now = Date.now();
+  let nextAt = now + aniListRequestGapMs;
+  const remaining = Number(response.headers.get('X-RateLimit-Remaining'));
+  const resetAt = getAniListResetAt(response);
+  if (remaining === 0 && resetAt > now) nextAt = Math.max(nextAt, resetAt);
+  if (response.status === 429) nextAt = Math.max(nextAt, now + retryDelay(response, 1));
+  aniListNextRequestAt = Math.max(aniListNextRequestAt, nextAt);
+}
+
+async function fetchAniListGraphQL(query, variables={}, maxAttempts=3){
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    if (!navigator.onLine) throw new Error('Offline');
+    await waitFor(aniListNextRequestAt - Date.now());
+    const controller = new AbortController();
+    let timeoutId = null;
+    let response;
+    try {
+      timeoutId = window.setTimeout(() => controller.abort(), 15000);
+      response = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
+        body: JSON.stringify({query, variables}),
+        signal: controller.signal
+      });
+      scheduleAniListRequest(response);
+    } catch (error) {
+      if (!navigator.onLine) throw new Error('Offline');
+      aniListNextRequestAt = Math.max(aniListNextRequestAt, Date.now() + aniListRequestGapMs);
+      lastError = error;
+      if (attempt === maxAttempts) throw new Error('AniList zahtjev nije uspio: ' + (error.message || 'mrežna greška'));
+      await waitFor(1000 * (2 ** (attempt - 1)));
+      continue;
+    } finally {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    }
+
+    if (response.status === 429 || response.status >= 500) {
+      lastError = new Error('AniList privremeno odbija zahtjev (HTTP ' + response.status + ').');
+      if (attempt === maxAttempts) throw lastError;
+      await waitFor(retryDelay(response, attempt));
+      continue;
+    }
+    if (!response.ok) throw new Error('AniList je vratio HTTP ' + response.status + '.');
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch (_) {
+      throw new Error('AniList je vratio neispravan JSON odgovor.');
+    }
+    if (payload.errors?.length) {
+      const rateError = payload.errors.some(error => error.status === 429 || /too many requests/i.test(error.message || ''));
+      if (rateError && attempt < maxAttempts) {
+        lastError = new Error('AniList ograničava broj zahtjeva.');
+        await waitFor(retryDelay(response, attempt));
+        continue;
+      }
+      throw new Error(payload.errors.map(error => error.message).join('; '));
+    }
+    if (!payload.data) throw new Error('AniList odgovor ne sadrži podatke.');
+    return payload.data;
+  }
+  throw lastError || new Error('AniList zahtjev nije uspio.');
+}
+function aniListMediaFields(){
+  return 'id idMal title { romaji english native userPreferred } format season seasonYear startDate { year month day } episodes duration status countryOfOrigin source genres averageScore tags { name rank isMediaSpoiler isGeneralSpoiler }';
+}
+
+function applyAniListMedia(item, media){
+  item.aniListId = Number.isInteger(media.id) ? media.id : null;
+  item.apiGenres = Array.isArray(media.genres) ? media.genres.filter(genre => typeof genre === 'string') : [];
+  item.apiTags = Array.isArray(media.tags) ? media.tags.filter(tag => tag && typeof tag.name === 'string').map(tag => ({
+    name: tag.name, rank: Number.isFinite(Number(tag.rank)) ? Number(tag.rank) : 0,
+    isMediaSpoiler: tag.isMediaSpoiler === true, isGeneralSpoiler: tag.isGeneralSpoiler === true
+  })) : [];
+  item.aniListAverageScore = Number.isFinite(media.averageScore) ? Number((media.averageScore / 10).toFixed(2)) : null;
+  item.aniListFormat = typeof media.format === 'string' ? media.format : '';
+  item.aniListSeason = typeof media.season === 'string' ? media.season : '';
+  item.aniListSeasonYear = Number.isInteger(media.seasonYear) ? media.seasonYear : 0;
+  item.aniListStartDate = media.startDate && typeof media.startDate === 'object' ? media.startDate : null;
+  item.releaseYear = Number.isInteger(media.startDate?.year) ? media.startDate.year : item.releaseYear || 0;
+  item.aniListEpisodes = Number.isInteger(media.episodes) ? media.episodes : 0;
+  item.aniListDuration = Number.isInteger(media.duration) ? media.duration : 0;
+  item.aniListStatus = typeof media.status === 'string' ? media.status : '';
+  item.aniListCountry = typeof media.countryOfOrigin === 'string' ? media.countryOfOrigin : '';
+  item.aniListSource = typeof media.source === 'string' ? media.source : '';
+}
+
+async function fetchAnimeBatch(batch){
+  const matches = new Map();
+  const byAniListId = batch.filter(anime => parseNonNegativeInt(anime.aniListId));
+  const byMalId = batch.filter(anime => !parseNonNegativeInt(anime.aniListId) && parseNonNegativeInt(anime.mal_id));
+  const fields = aniListMediaFields();
+
+  if (byMalId.length) {
+    const ids = byMalId.map(anime => parseNonNegativeInt(anime.mal_id));
+    const query = 'query ($ids: [Int]) { Page(page: 1, perPage: 50) { media(idMal_in: $ids, type: ANIME) { ' + fields + ' } } }';
+    const data = await fetchAniListGraphQL(query, {ids});
+    const byId = new Map(byMalId.map(anime => [Number(anime.mal_id), anime]));
+    for (const media of data.Page?.media || []) {
+      const item = byId.get(Number(media.idMal));
+      if (item) matches.set(item, media);
+    }
+  }
+
+  if (byAniListId.length) {
+    const ids = byAniListId.map(anime => parseNonNegativeInt(anime.aniListId));
+    const query = 'query ($ids: [Int]) { Page(page: 1, perPage: 50) { media(id_in: $ids, type: ANIME) { ' + fields + ' } } }';
+    const data = await fetchAniListGraphQL(query, {ids});
+    const byId = new Map(byAniListId.map(anime => [parseNonNegativeInt(anime.aniListId), anime]));
+    for (const media of data.Page?.media || []) {
+      const item = byId.get(Number(media.id));
+      if (item) matches.set(item, media);
+    }
+  }
+
+  return matches;
+}
+async function fetchAnimeTitleCandidates(batch){
+  const variables = {};
+  const definitions = [];
+  const queryParts = batch.map((anime, index) => {
+    const variable = 'title' + index;
+    definitions.push('$' + variable + ': String!');
+    variables[variable] = String(anime.title || '').trim();
+    return 'search' + index + ': Page(page: 1, perPage: 5) { media(search: $' + variable + ', type: ANIME) { ' + aniListMediaFields() + ' } }';
+  });
+  return fetchAniListGraphQL('query (' + definitions.join(', ') + ') { ' + queryParts.join('\n') + ' }', variables);
+}
+
+let shadowFetchBusy = false;
+let matchSearchBusy = false;
+let matchReviewState = null;
+const ANI_LIST_MISSING_RETRY_MS = 30 * 24 * 60 * 60 * 1000;
+
+function shouldRetryAniListMiss(anime){
+  if (anime.aniListMatchStatus !== 'not_found') return false;
+  const checkedAt = Date.parse(anime.aniListLastCheckedAt || '');
+  return !Number.isFinite(checkedAt) || Date.now() - checkedAt >= ANI_LIST_MISSING_RETRY_MS;
+}
+
+function updateAniListControls(){
+  const missing = enriched.filter(anime => anime.mal_id && anime.aniListMatchStatus === 'not_found').length;
+  const shadowBtn = el('shadowBtn');
+  const rescanBtn = el('rescanMissingBtn');
+  const matchBtn = el('matchMissingBtn');
+  if (shadowBtn) shadowBtn.disabled = !isOnline || shadowFetchBusy;
+  if (rescanBtn) {
+    rescanBtn.textContent = 'PONOVI NEPRONAĐENE (' + missing + ')';
+    rescanBtn.disabled = !isOnline || shadowFetchBusy || matchSearchBusy || missing === 0;
+  }
+  if (matchBtn) {
+    matchBtn.textContent = 'RUČNO POVEŽI NEPRONAĐENE (' + missing + ')';
+    matchBtn.disabled = !isOnline || shadowFetchBusy || matchSearchBusy || Boolean(matchReviewState) || missing === 0;
+  }
+}
+
+async function refreshAfterAniListChange(){
+  populateFilters();
+  updateStats();
+  renderCharts();
+  renderInsights();
+  void renderRecommendations({fetchFresh: false});
+  renderAchievements();
+  await saveAnalysis(enriched);
+  updateAniListControls();
+}
+
+async function runShadowFetch(){
+  if (shadowFetchBusy) return;
+  if (!navigator.onLine) {
+    setStatus('Shadow Fetch nije dostupan bez mreže.', true);
+    return;
+  }
+
+  const btn = el('shadowBtn');
+  const pending = enriched.filter(anime => anime.mal_id && (!anime.aniListFetched || shouldRetryAniListMiss(anime)));
+  if (!pending.length) {
+    const found = enriched.filter(anime => anime.aniListMatchStatus === 'matched').length;
+    const missing = enriched.filter(anime => anime.aniListMatchStatus === 'not_found').length;
+    setStatus('Nema novih ili dospjelih naslova za skeniranje. Povezano: ' + found + '; nije pronađeno: ' + missing + '.');
+    await renderRecommendations();
+    return;
+  }
+
+  const batchSize = 20;
+  let attemptedTitles = 0;
+  let foundTitles = 0;
+  let missingTitles = 0;
+  let failedTitles = 0;
+  let firstError = '';
+  let interrupted = false;
+
+  shadowFetchBusy = true;
+  btn.textContent = 'Dohvaćam...';
+  el('progressWrap').style.visibility = 'visible';
+  el('bar').style.width = '0%';
+  setStatus('Dohvaćam AniList metapodatke za ' + pending.length + ' naslova...');
+  updateAniListControls();
+
+  try {
+    for (let i = 0; i < pending.length; i += batchSize) {
+      if (!navigator.onLine) {
+        interrupted = true;
+        break;
+      }
+      const batch = pending.slice(i, i + batchSize);
+      attemptedTitles += batch.length;
+      const batchNumber = Math.floor(i / batchSize) + 1;
+      const batchCount = Math.ceil(pending.length / batchSize);
+      setStatus('AniList batch ' + batchNumber + '/' + batchCount + '...');
+
+      try {
+        const results = await fetchAnimeBatch(batch);
+        const checkedAt = new Date().toISOString();
+        batch.forEach(item => {
+          item.aniListFetched = true;
+          item.aniListLastCheckedAt = checkedAt;
+          const media = results.get(item);
+          if (media && Number.isInteger(media.id)) {
+            applyAniListMedia(item, media);
+            item.aniListFetched = true;
+            item.aniListMatchStatus = 'matched';
+            foundTitles += 1;
+          } else {
+            item.aniListMatchStatus = 'not_found';
+            missingTitles += 1;
+          }
+        });
+      } catch (error) {
+        failedTitles += batch.length;
+        if (!firstError) firstError = error.message || String(error);
+        const checkedAt = new Date().toISOString();
+        batch.forEach(item => {
+          item.aniListFetched = false;
+          item.aniListMatchStatus = 'error';
+          item.aniListLastCheckedAt = checkedAt;
+        });
+        console.warn('AniList batch nije uspio:', error);
+        if (!navigator.onLine || error.message === 'Offline') {
+          interrupted = true;
+          break;
+        }
+      }
+
+      const progress = Math.round(attemptedTitles / pending.length * 100);
+      el('bar').style.width = progress + '%';
+      el('progressWrap').setAttribute('aria-valuenow', String(progress));
+      await saveAnalysis(enriched);
+    }
+  } finally {
+    shadowFetchBusy = false;
+    btn.disabled = !navigator.onLine;
+    btn.textContent = 'SHADOW FETCH (AniList)';
+    await refreshAfterAniListChange();
+  }
+
+  const unattempted = pending.length - attemptedTitles;
+  if (interrupted) {
+    setStatus('Dohvaćanje je prekinuto. Povezano ' + foundTitles + ', nije pronađeno ' + missingTitles + ', neuspjelo ' + failedTitles + '; neobrađeno ' + unattempted + '.' + (firstError ? ' Detalj: ' + firstError : ''), true);
+  } else {
+    setStatus('Scan završen: povezano ' + foundTitles + ', nije pronađeno ' + missingTitles + ', neuspjelo ' + failedTitles + '. Neuspjeli zahtjevi pokušat će se ponovno pri sljedećem scanu.' + (firstError ? ' Detalj: ' + firstError : ''), Boolean(firstError));
+  }
+}
+
+function titleForAniList(media){
+  const title = media?.title || {};
+  return title.english || title.romaji || title.native || title.userPreferred || 'Anime bez naslova';
+}
+
+function closeMatchReview(){
+  matchReviewState = null;
+  const panel = el('matchReviewPanel');
+  if (panel) panel.style.display = 'none';
+  updateAniListControls();
+}
+
+function renderMatchReview(){
+  if (!matchReviewState) return;
+  const {items, index} = matchReviewState;
+  const panel = el('matchReviewPanel');
+  const progress = el('matchReviewProgress');
+  const content = el('matchReviewContent');
+  panel.style.display = 'block';
+  content.replaceChildren();
+  if (index >= items.length) {
+    progress.textContent = 'Pregledano ' + items.length + ' nepovezanih naslova.';
+    const close = document.createElement('button');
+    close.type = 'button'; close.className = 'btn secondary'; close.textContent = 'ZATVORI';
+    close.addEventListener('click', closeMatchReview);
+    content.append(close);
+    // Keep the review active until the user closes this panel.
+    updateAniListControls();
+    return;
+  }
+
+  const entry = items[index];
+  const anime = entry.anime;
+  progress.textContent = 'Naslov ' + (index + 1) + ' od ' + items.length;
+  const heading = document.createElement('h3');
+  heading.textContent = (anime.title || 'Nepoznat naslov') + ' (MAL ID ' + anime.mal_id + ')';
+  content.append(heading);
+  const note = document.createElement('p');
+  note.className = 'recommendation-note';
+  note.textContent = entry.searchFailed ? 'AniList pretraga nije uspjela za ovaj naslov. Preskoči ga i pokušaj kasnije.' : entry.candidates.length ? 'Odaberi točno podudaranje. Kandidati su prijedlozi po naslovu i zahtijevaju tvoju potvrdu.' : 'AniList nije vratio kandidate za ovaj naslov.';
+  content.append(note);
+
+  let select = null;
+  if (entry.candidates.length) {
+    select = document.createElement('select');
+    select.setAttribute('aria-label', 'AniList kandidat za ' + (anime.title || 'naslov'));
+    select.add(new Option('Odaberi AniList naslov…', ''));
+    entry.candidates.forEach(candidate => {
+      const meta = [candidate.format, candidate.seasonYear, Number.isFinite(candidate.averageScore) ? (candidate.averageScore / 10).toFixed(1) + '/10' : '', candidate.idMal ? 'MAL ' + candidate.idMal : 'bez MAL ID-ja'].filter(Boolean).join(' · ');
+      select.add(new Option(titleForAniList(candidate) + (meta ? ' — ' + meta : ''), String(candidate.id)));
+    });
+    content.append(select);
+  }
+
+  const actions = document.createElement('div');
+  actions.className = 'controls-row';
+  const confirm = document.createElement('button');
+  confirm.type = 'button'; confirm.className = 'btn'; confirm.textContent = 'POTVRDI PODUDARANJE';
+  confirm.disabled = !select;
+  if (select) select.addEventListener('change', () => { confirm.disabled = !select.value; });
+  confirm.addEventListener('click', async () => {
+    if (!select?.value) return;
+    const candidate = entry.candidates.find(item => String(item.id) === select.value);
+    if (!candidate) return;
+    applyAniListMedia(anime, candidate);
+    anime.aniListFetched = true;
+    anime.aniListMatchStatus = 'matched';
+    anime.aniListLastCheckedAt = new Date().toISOString();
+    await refreshAfterAniListChange();
+    matchReviewState.index += 1;
+    renderMatchReview();
+  });
+  actions.append(confirm);
+  const skip = document.createElement('button');
+  skip.type = 'button'; skip.className = 'btn secondary'; skip.textContent = 'PRESKOČI';
+  skip.addEventListener('click', () => { matchReviewState.index += 1; renderMatchReview(); });
+  actions.append(skip);
+  const cancel = document.createElement('button');
+  cancel.type = 'button'; cancel.className = 'btn secondary'; cancel.textContent = 'ZATVORI';
+  cancel.addEventListener('click', closeMatchReview);
+  actions.append(cancel);
+  content.append(actions);
+}
+
+async function startManualMatchReview(){
+  if (matchSearchBusy || shadowFetchBusy || matchReviewState) return;
+  if (!navigator.onLine) { setStatus('Ručno povezivanje nije dostupno bez mreže.', true); return; }
+  const unresolved = enriched.filter(anime => anime.mal_id && anime.aniListMatchStatus === 'not_found');
+  if (!unresolved.length) { setStatus('Nema nepovezanih AniList naslova za pregled.'); return; }
+  matchSearchBusy = true;
+  updateAniListControls();
+  const items = [];
+  const batchSize = 5;
+  try {
+    for (let i = 0; i < unresolved.length; i += batchSize) {
+      if (!navigator.onLine) break;
+      const batch = unresolved.slice(i, i + batchSize);
+      setStatus('Tražim AniList kandidate po naslovu: ' + Math.min(i + batch.length, unresolved.length) + '/' + unresolved.length + '...');
+      try {
+        const results = await fetchAnimeTitleCandidates(batch);
+        batch.forEach((anime, index) => {
+          const media = results['search' + index]?.media || [];
+          items.push({anime, candidates: media.filter(candidate => Number.isInteger(candidate.id)), searchFailed: false});
+        });
+      } catch (error) {
+        console.warn('AniList pretraga kandidata nije uspjela:', error);
+        batch.forEach(anime => items.push({anime, candidates: [], searchFailed: true}));
+        if (!navigator.onLine || error.message === 'Offline') break;
+      }
+    }
+  } finally {
+    matchSearchBusy = false;
+    updateAniListControls();
+  }
+  if (!items.length) { setStatus('Nisu dohvaćeni AniList kandidati. Pokušaj ponovno kad mreža bude dostupna.', true); return; }
+  matchReviewState = {items, index: 0};
+  renderMatchReview();
+  setStatus('Kandidati su spremni za ručnu provjeru. Odabir se sprema samo nakon tvoje potvrde.');
+  updateAniListControls();
+}
+
+el('shadowBtn').onclick = runShadowFetch;
+el('rescanMissingBtn').onclick = async () => {
+  if (shadowFetchBusy || !navigator.onLine) return;
+  enriched.filter(anime => anime.mal_id && anime.aniListMatchStatus === 'not_found').forEach(anime => {
+    anime.aniListFetched = false;
+    anime.aniListMatchStatus = 'pending';
+    anime.aniListLastCheckedAt = '';
+  });
+  await saveAnalysis(enriched);
+  await runShadowFetch();
+};
+el('matchMissingBtn').onclick = startManualMatchReview;
+// Charts rendering
+function renderCharts(){
+  if (!window.Chart) {
+    console.error('Chart.js nije dostupan; statistika je učitana bez grafikona.');
+    return false;
+  }
+  renderStatusChart(); renderTimelineChart(); renderVsChart(); renderGenreChart();
+  return true;
+}
+
+function renderStatusChart(){
+  const counts = {}; getFilteredAnime().forEach(a => counts[a.status] = (counts[a.status]||0)+1);
+  const ctx = el('statusChart'); if(statusChartInstance) statusChartInstance.destroy();
+  statusChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:Object.keys(counts), datasets:[{ data:Object.values(counts), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800'] }] }, options:{ responsive:true, maintainAspectRatio:false, onClick:(_event,elements)=>{if(elements.length){el('filterStatus').value=Object.keys(counts)[elements[0].index];refreshFilteredView();}}, plugins:{legend:{position:'right', labels:{color:Chart.defaults.color}} } } });
+}
+
+function renderTimelineChart(){
+  const years = {}; getFilteredAnime().forEach(a => { if(a.year>0 && a.status==='Completed') years[a.year] = (years[a.year]||0)+1; });
+  const sorted = Object.entries(years).sort((a,b)=>a[0]-b[0]);
+  const ctx = el('timelineChart'); if(timelineChartInstance) timelineChartInstance.destroy();
+  // Koristimo Chart.defaults.color
+  timelineChartInstance = new Chart(ctx, { type:'line', data:{ labels:sorted.map(x=>x[0]), datasets:[{ label:'Završeno', data:sorted.map(x=>x[1]), borderColor:getComputedStyle(document.documentElement).getPropertyValue('--blue'), backgroundColor:'rgba(0,217,255,0.12)', tension:.3, fill:true }] }, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true, ticks:{ color:Chart.defaults.color } }, x:{ ticks:{ color:Chart.defaults.color } } }, plugins:{legend:{labels:{color:Chart.defaults.color}} } } });
+}
+
+function renderVsChart(){
+  // 1. Filter samo naslove s ocjenom i API prosjekom
+  const valid = getFilteredAnime().filter(a => a.score > 0 && a.aniListAverageScore != null);
+  const placeholder = el('vsError');
+  const ctx = el('vsChart');
+
+  if(vsChartInstance) vsChartInstance.destroy();
+
+  if(valid.length < 5){
+      placeholder.style.display='flex';
+      return;
+  }
+  placeholder.style.display='none';
+
+  // 2. Izračunaj apsolutni jaz (gap) i sortiraj prema njemu (najveći jaz prvi)
+  const sortedByGap = valid.map(a => ({
+      ...a,
+      gap: Math.abs(a.score - parseFloat(a.aniListAverageScore))
+  })).sort((a, b) => b.gap - a.gap);
+
+  // 3. Uzmi top 15 s najvećim jazom
+  const top15ByGap = sortedByGap.slice(0, 15);
+
+  // 4. Kreiranje grafa
+  vsChartInstance = new Chart(ctx, {
+      type:'bar',
+      data:{
+          labels: top15ByGap.map(a => a.title.length > 24 ? a.title.slice(0,21)+'...' : a.title),
+          datasets:[
+              {
+                  label:'Tvoja ocjena',
+                  data: top15ByGap.map(a => a.score),
+                  backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--accent')
+              },
+              {
+                  label:'AniList prosjek',
+                  data: top15ByGap.map(a => parseFloat(a.aniListAverageScore)),
+                  backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--red')
+              }
+          ]
+      },
+      options:{
+          responsive:true,
+          maintainAspectRatio:false,
+          scales:{
+              y:{
+                  min: 0,
+                  max: 10,
+                  ticks:{ color:Chart.defaults.color }
+              }
+          },
+          plugins:{
+              legend:{labels:{color:Chart.defaults.color}}
+          }
+      }
+  });
+}
+
+function renderGenreChart(){
+  const ctx = el('genreChart'), placeholder = el('genrePlaceholder'); if(genreChartInstance) genreChartInstance.destroy();
+  const g = {}; getFilteredAnime().forEach(a => (a.apiGenres||[]).forEach(x => g[x] = (g[x]||0)+1));
+  const top = Object.entries(g).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(top.length===0){ placeholder.style.display='flex'; return; } placeholder.style.display='none';
+  genreChartInstance = new Chart(ctx, { type:'doughnut', data:{ labels:top.map(x=>x[0]), datasets:[{ data:top.map(x=>x[1]), backgroundColor:['#00ff88','#00d9ff','#ff0066','#ffd700','#ff8800','#88ff00','#0088ff','#ff0088','#00ff00','#ffff00'] }] }, options:{ responsive:true, maintainAspectRatio:false, onClick:(_event,elements)=>{if(elements.length){el('filterGenre').value=top[elements[0].index][0];refreshFilteredView();}}, plugins:{legend:{position:'right', labels:{color:Chart.defaults.color}} } } });
+}
+
+// insights + achievements + personality
+function determinePersonality(){
+  const mean = parseFloat(el('mean').textContent) || 0;
+  const tens = parseInt(el('tens').textContent) || 0;
+  const completed = parseInt(el('completed').textContent) || 0;
+  let archetype='The Balanced Viewer', desc='Uživaš u raznolikosti.', quote='„Solidan ukus.“';
+  if(mean>8.7){ archetype='The Generous God'; desc='Voliš sve.'; quote='„Za tebe je sve 9+.\"'; }
+  else if(mean>8.2){ archetype='The Soft Critic'; desc='Daješ visoke ocjene.'; quote='„Volis anime.\"'; }
+  else if(mean<6.5){ archetype='The Harsh Judge'; desc='Samo najbolje prolazi.'; quote='„Poštovanje.\"'; }
+  if(tens>25){ archetype='The 10/10 Chad'; desc='Perfekcionist.'; quote='„Ti si legenda.\"'; }
+  if(completed>300){ archetype='The Eternal Marathoner'; desc='Živiš anime.'; quote='„Ti si MAL statistika.\"'; }
+  const allCompleted = enriched.filter(a => a.status === 'Completed').length;
+  const allDropped = enriched.filter(a => a.status === 'Dropped').length;
+  if(allCompleted > 0 && allDropped / allCompleted > 0.30){ archetype='The Drop Specialist'; desc='Pažljivo biraš što zaslužuje tvoje vrijeme.'; quote='„Tri epizode su bile dovoljne.“'; }
+  el('personality-title').textContent = archetype;
+  el('personality-desc').textContent = desc;
+  el('personality-comment').textContent = quote;
+  el('insight-archetype').textContent = `${archetype} — ${desc}`;
+}
+
+function renderInsights(){
+  const visible=getFilteredAnime();
+  const rated=visible.filter(a=>Number(a.score)>0);
+  const average=items=>items.length?items.reduce((sum,item)=>sum+Number(item.score),0)/items.length:0;
+  const median=values=>{const sorted=[...values].sort((a,b)=>a-b);if(!sorted.length)return null;const mid=Math.floor(sorted.length/2);return sorted.length%2?sorted[mid]:(sorted[mid-1]+sorted[mid])/2;};
+  const scores=rated.map(a=>Number(a.score));
+  if(scores.length){
+    const mean=average(rated),variance=scores.reduce((sum,score)=>sum+(score-mean)**2,0)/scores.length;
+    el('insight-rating-profile').textContent=`Prosjek ${mean.toFixed(2)}/10 · medijan ${median(scores).toFixed(1)} · raspon ${Math.min(...scores)}–${Math.max(...scores)} · ${Math.sqrt(variance).toFixed(2)} standardne devijacije (${scores.length} ocjena).`;
+  }else el('insight-rating-profile').textContent='Nema ocijenjenih naslova u odabiru.';
+
+  const compared=rated.filter(a=>Number.isFinite(Number(a.aniListAverageScore))&&Number(a.aniListAverageScore)>0);
+  if(compared.length){
+    const gaps=compared.map(a=>a.score-Number(a.aniListAverageScore));
+    const meanGap=gaps.reduce((sum,gap)=>sum+gap,0)/gaps.length;
+    const close=gaps.filter(gap=>Math.abs(gap)<=1).length;
+    const direction=Math.abs(meanGap)<0.15?'uglavnom si usklađen/a s prosjekom':meanGap>0?'u prosjeku ocjenjuješ više':'u prosjeku ocjenjuješ niže';
+    el('insight-consensus').textContent=`${direction} za ${Math.abs(meanGap).toFixed(2)} boda; ${Math.round(close/compared.length*100)}% ocjena je unutar ±1 boda (${compared.length} usporedbi).`;
+  }else el('insight-consensus').textContent='Nema dovoljno AniList usporedbi za odabrane naslove.';
+
+  const genreGroups=new Map();
+  rated.forEach(a=>(a.apiGenres||[]).forEach(genre=>{if(!genreGroups.has(genre))genreGroups.set(genre,[]);genreGroups.get(genre).push(Number(a.score));}));
+  const topGenres=[...genreGroups.entries()].filter(([,values])=>values.length>=5).map(([genre,values])=>({genre,count:values.length,mean:values.reduce((s,v)=>s+v,0)/values.length})).sort((a,b)=>b.mean-a.mean);
+  el('insight-genre-taste').textContent=topGenres.length?`${topGenres.slice(0,3).map(x=>`${x.genre} ${x.mean.toFixed(2)}/10 (n=${x.count})`).join(' · ')}. Usporedba uključuje samo žanrove s barem 5 ocijenjenih naslova.`:'Treba barem 5 ocijenjenih naslova u istom AniList žanru.';
+
+  const formatGroups=new Map();
+  visible.filter(a=>['Completed','Dropped'].includes(a.status)).forEach(a=>{const format=String(a.aniListFormat||a.malType||'').trim();if(!format)return;if(!formatGroups.has(format))formatGroups.set(format,{completed:0,dropped:0});formatGroups.get(format)[a.status==='Completed'?'completed':'dropped']++;});
+  const formats=[...formatGroups.entries()].map(([format,count])=>({format,...count,total:count.completed+count.dropped,rate:count.completed/(count.completed+count.dropped)})).filter(x=>x.total>=5).sort((a,b)=>b.rate-a.rate);
+  el('insight-format').textContent=formats.length?`${formats.slice(0,3).map(x=>`${x.format}: ${Math.round(x.rate*100)}% završeno (n=${x.total})`).join(' · ')}. Računaju se samo završeni i odbačeni naslovi.`:'Premalo povezanih ili označenih naslova po formatu (potrebno n≥5).';
+
+  const eraGroups=new Map();
+  rated.forEach(a=>{const year=Number(a.releaseYear);if(!Number.isInteger(year)||year<1900)return;const decade=Math.floor(year/10)*10;if(!eraGroups.has(decade))eraGroups.set(decade,[]);eraGroups.get(decade).push(Number(a.score));});
+  const eras=[...eraGroups.entries()].filter(([,values])=>values.length>=5).map(([decade,values])=>({decade,count:values.length,mean:values.reduce((s,v)=>s+v,0)/values.length})).sort((a,b)=>b.mean-a.mean);
+  el('insight-era').textContent=eras.length?`${eras[0].decade}-e: prosjek ${eras[0].mean.toFixed(2)}/10 na ${eras[0].count} ocijenjenih naslova. Sljedeće: ${eras.slice(1,3).map(x=>`${x.decade}-e (${x.mean.toFixed(2)})`).join(', ')||'nema dovoljno podataka'}.`:'Nema dovoljno podataka o godini izlaska (potrebno n≥5 u desetljeću).';
+
+  const longest = visible.reduce((a,b)=> b.totalEp > (a.totalEp||0) ? b : a, visible[0]||{});
+  el('insight-marathon').textContent = longest && longest.title ? `${longest.title} (${longest.totalEp} ep)` : 'N/A';
+
+  const tens = getFilteredAnime().filter(a=>a.score===10);
+  // OPTIMIZACIJA C: Promijenjeno malScore u aniListAverageScore
+  const controversial = tens.length ? tens.sort((a,b)=> (parseFloat(a.aniListAverageScore)||10) - (parseFloat(b.aniListAverageScore)||10))[0] : null;
+  el('insight-controversial').textContent = controversial ? `${controversial.title} (${controversial.aniListAverageScore ? parseFloat(controversial.aniListAverageScore).toFixed(1) : '?' } prosjek)` : 'Nema 10/10';
+
+  const worst = visible.filter(a=>a.score>0).reduce((a,b)=> a.score < b.score ? a : b, visible[0]||{});
+  el('insight-gap').textContent = worst && worst.title ? `${worst.title} (${worst.score}/10)` : 'N/A';
+}
+
+let recommendationRequest = 0;
+
+async function renderRecommendations(options={}){
+  const container = el('recsContent');
+  const requestId = ++recommendationRequest;
+  const showMessage = message => {
+    container.replaceChildren(document.createTextNode(message));
+    container.classList.add('no-data');
+  };
+
+  const weights = new Map();
+  const liked = getFilteredAnime().filter(anime => anime.score >= 7 && anime.apiGenres.length);
+  for (const anime of liked) {
+    const weight = anime.score - 6;
+    for (const genre of anime.apiGenres) weights.set(genre, (weights.get(genre) || 0) + weight);
+  }
+  const topGenres = [...weights.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+  if (liked.length < 3 || !topGenres.length) {
+    showMessage('Za preporuke trebaju barem 3 ocijenjena naslova s AniList žanrovima. Pokreni Shadow Fetch.');
+    return;
+  }
+  if (options.fetchFresh === false) {
+    showMessage('Žanrovi su spremljeni. Pokreni Shadow Fetch za AniList preporuke.');
+    return;
+  }
+  if (!navigator.onLine) {
+    showMessage('Preporuke trebaju mrežu. Tvoja spremljena analiza i dalje je dostupna offline.');
+    return;
+  }
+
+  showMessage('Tražim anime prema žanrovima koje visoko ocjenjuješ...');
+  const preferredGenres = new Map(topGenres);
+  const totalWeight = topGenres.reduce((sum, entry) => sum + entry[1], 0);
+  const watchedIds = new Set(getFilteredAnime().map(anime => Number(anime.mal_id)).filter(id => Number.isInteger(id) && id > 0));
+  const query = 'query ($genres: [String]) { Page(page: 1, perPage: 25) { media(type: ANIME, isAdult: false, genre_in: $genres, sort: [POPULARITY_DESC, SCORE_DESC]) { id idMal title { romaji english } genres averageScore popularity siteUrl isAdult } } }';
+
+  try {
+    const response = await fetchAniListGraphQL(query, {genres: topGenres.map(entry => entry[0])});
+    if (requestId !== recommendationRequest) return;
+
+    const media = response.Page?.media || [];
+    const candidates = media
+      .filter(anime => anime && Number.isInteger(anime.idMal) && !watchedIds.has(anime.idMal) && !anime.isAdult)
+      .map(anime => {
+        const matchedGenres = (anime.genres || []).filter(genre => preferredGenres.has(genre));
+        const matchedWeight = matchedGenres.reduce((sum, genre) => sum + preferredGenres.get(genre), 0);
+        const match = totalWeight ? matchedWeight / totalWeight : 0;
+        return {...anime, matchedGenres, match};
+      })
+      .filter(anime => anime.matchedGenres.length && Number(anime.averageScore) >= 60)
+      .sort((a, b) => b.match - a.match || (b.averageScore || 0) - (a.averageScore || 0) || (b.popularity || 0) - (a.popularity || 0))
+      .slice(0, 8);
+
+    if (!candidates.length) {
+      showMessage('Nisam našao neodgledane naslove za tvoje omiljene žanrove.');
+      return;
+    }
+
+    const intro = document.createElement('p');
+    intro.className = 'recommendation-note';
+    intro.textContent = 'Preporuke AniLista rangirane prema žanrovima tvojih ocjena 7–10.';
+    const list = document.createElement('ol');
+    list.className = 'recommendation-list';
+
+    for (const anime of candidates) {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      let targetUrl = 'https://anilist.co/anime/' + anime.id;
+      try {
+        const apiUrl = new URL(anime.siteUrl || targetUrl, targetUrl);
+        if (apiUrl.protocol === 'https:' && apiUrl.hostname === 'anilist.co') targetUrl = apiUrl.href;
+      } catch (_) {}
+      link.href = targetUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = anime.title?.english || anime.title?.romaji || 'Anime bez naslova';
+      const detail = document.createElement('div');
+      detail.className = 'recommendation-meta';
+      detail.textContent = anime.matchedGenres.join(' · ') + ' · AniList ' +
+        (Number(anime.averageScore) / 10).toFixed(1) + '/10 · ' + Math.round(anime.match * 100) + '% žanrovsko podudaranje';
+      item.append(link, detail);
+      list.append(item);
+    }
+
+    container.classList.remove('no-data');
+    container.replaceChildren(intro, list);
+  } catch (error) {
+    if (requestId === recommendationRequest) showMessage('Preporuke nisu dostupne: ' + error.message);
+  }
+}
+
+function renderAchievements(){
+  const c = el('achievementsContent');
+  const fullList = enriched;
+  const completed = fullList.filter(a => a.status === 'Completed').length;
+  const scored = fullList.filter(a => a.score > 0);
+  const mean = scored.length ? scored.reduce((sum, a) => sum + a.score, 0) / scored.length : 0;
+  const tens = fullList.filter(a => a.score === 10).length;
+  const totalEpisodes = fullList.reduce((sum, a) => sum + (a.watched || 0), 0);
+  const days = Math.round(totalEpisodes * 24 / 1440);
+  const badges = [];
+
+  // Achievementi se računaju iz cijele liste, ne iz trenutačno filtriranih rezultata.
+  const droppedCount = fullList.filter(a => a.status === 'Dropped').length;
+  const watchingCount = fullList.filter(a => a.status === 'Watching').length;
+  const onHoldCount = fullList.filter(a => a.status === 'On-Hold').length;
+  const threeEpisodeDrops = fullList.filter(a => a.status === 'Dropped' && a.watched === 3).length;
+  const oneEpisodeDrops = fullList.filter(a => a.status === 'Dropped' && a.watched === 1).length;
+  const marathonTitles = fullList.filter(a => a.status === 'Completed' && a.watched >= 100).length;
+  const centristCount = scored.filter(a => a.score >= 7 && a.score <= 8).length;
+  const perfectionist = completed >= 100 && mean >= 7.00 && mean <= 7.50;
+  const guiltyPleasures = fullList.filter(a => a.score === 10 && a.aniListAverageScore != null && parseFloat(a.aniListAverageScore) < 6.5).length;
+  const bigThree = new Set();
+  fullList.filter(a => a.status === 'Completed').forEach(a => {
+    const title = String(a.title || '').toLocaleLowerCase();
+    if (/\bone piece\b/.test(title)) bigThree.add('one piece');
+    if (/\bnaruto\b/.test(title)) bigThree.add('naruto');
+    if (/\bbleach\b/.test(title)) bigThree.add('bleach');
+  });
+
+  const allGenres = {};
+  fullList.forEach(a => (a.apiGenres || []).forEach(g => allGenres[g] = (allGenres[g] || 0) + 1));
+  const distinctGenres = Object.keys(allGenres).length;
+
+  // Pomoćna funkcija za pronalazak kontroverznih naslova
+  // Kontroverza: Tvoja ocjena je 3.0+ boda veća od API prosjeka
+  const controversialTitles = enriched.filter(a => a.score > 0 && a.aniListAverageScore != null)
+      .map(a => ({
+          title: a.title,
+          gap: a.score - parseFloat(a.aniListAverageScore)
+      }))
+      .filter(item => item.gap >= 3.0);
+
+  // --- 1. Vrijeme i Kvantiteta (AŽURIRANO) ---
+  if(totalEpisodes >= 5000) badges.push('Episodic Titan (5000+ epizoda)');
+  if(marathonTitles > 0) badges.push('Marathon Runner (100+ epizoda u naslovu)');
+  if(bigThree.size >= 2) badges.push('The Big Three Survivor (2 od 3)');
+  if(completed >= 1000) badges.push('MyAnimeDeity (1000+)');
+  else if(completed >= 500) badges.push('Completionist Legend (500+)');
+  else if(completed >= 250) badges.push('Veteran Viewer (250+)');
+  else if(completed >= 50) badges.push('Intermediate Viewer (50+)');
+  else if(completed >= 5) badges.push('The Tester (5+)');
+
+  if(days >= 100) badges.push('Time Traveler (100+ dana)');
+  else if(days >= 25) badges.push('Time Watcher (25+ dana)');
+  else if(days >= 1) badges.push('First Day (1+ dan)');
+
+  // --- 2. Kriticizam i Ukus (AŽURIRANO) ---
+  if(scored.length && centristCount / scored.length > 0.60) badges.push('The Decimal Sniper / Centrist (>60% ocjena 7–8)');
+  if(perfectionist) badges.push('Absolute Perfectionist (100+ dovršenih, prosjek 7.00–7.50)');
+  if(guiltyPleasures >= 3) badges.push('Guilty Pleasure (3+ desetki, AniList prosjek < 6.5)');
+  if(mean > 9.0) badges.push('Golden Standard (Prosjek > 9.0)');
+  else if(mean > 8.5) badges.push('Generous Heart (Prosjek > 8.5)');
+
+  if(mean < 6.0 && completed > 50) badges.push('The Executioner (Prosjek < 6.0)');
+  else if(mean < 7.0 && completed > 25) badges.push('Soft Critic (Prosjek < 7.0)');
+
+  if(tens >= 30) badges.push('Masterpiece Hunter (30x 10/10)');
+  else if(tens >= 1) badges.push('Starter Kit (Prva 10/10)');
+
+  if(data.filter(a=>a.score===1).length > 15) badges.push('Doom Bringer (15x 1/10)');
+  else if(data.filter(a=>a.score===1).length >= 5) badges.push('The Low Bar (5x 1/10)');
+
+  // --- 3. Navike i Raznolikost (NOVA SEKCIJA) ---
+  if (threeEpisodeDrops >= 10) badges.push('The Three-Episode Rule (10+ dropova nakon 3 epizode)');
+  if (oneEpisodeDrops >= 5) badges.push('No Mercy (5+ dropova nakon 1 epizode)');
+  if (onHoldCount >= 20) badges.push('Commitment Issues (20+ On-Hold)');
+  if (droppedCount >= 20) badges.push('The Quitter (20+ Dropova)');
+  else if (droppedCount >= 5) badges.push('The Chooser (5+ Dropova)');
+
+  if (watchingCount >= 10) badges.push('Current Runner (10+ Watching)');
+  else if (watchingCount >= 3) badges.push('Active Watcher (3+ Watching)');
+
+  if (distinctGenres >= 15 && completed >= 15) badges.push('Genre Explorer (15+ Žanrova)');
+
+  // --- 4. Shadow Fetch Insights ---
+  if(controversialTitles.length >= 5) {
+      badges.push(`Controversialist (${controversialTitles.length} izbora)`);
+  }
+
+  c.replaceChildren();
+  if (!badges.length) {
+    const empty = document.createElement('div');
+    empty.style.color = 'var(--muted)';
+    empty.textContent = 'Nastavi s gledanjem i ocjenjivanjem da otključaš prve bedževe!';
+    c.append(empty);
+    return;
+  }
+  for (const badge of badges) {
+    const element = document.createElement('span');
+    element.className = 'badge';
+    element.textContent = badge;
+    c.append(element);
+  }
+}
+
+// export + infographic
+el('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(enriched, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'nitro_v10_enriched.json'; a.click();
+};
+el('restoreBtn').onclick = () => fileInput.click();
+el('infoBtn').onclick = () => {
+  const includeTitles = window.confirm('Uključiti nazive pet najviše ocijenjenih animea u infografiku? Odaberi Odustani za privatnu verziju bez naziva.');
+  const topTitles = data.filter(anime => anime.score > 0).sort((a, b) => b.score - a.score).slice(0, 5);
+  const escapeHtml = value => { const node = document.createElement('span'); node.textContent = String(value ?? ''); return node.innerHTML; };
+  const titles = includeTitles && topTitles.length
+    ? '<section><h2>Najviše ocijenjeni</h2><ol>' + topTitles.map(anime => '<li>' + escapeHtml(anime.title) + ' — ' + anime.score + '/10</li>').join('') + '</ol></section>'
+    : '<section><h2>Naslovi</h2><p>Nazivi animea nisu uključeni.</p></section>';
+  const html = '<!doctype html><html lang="hr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nitro Anime Analytics — infografika</title><style>*{box-sizing:border-box}body{margin:0;padding:clamp(16px,5vw,48px);background:#07110d;color:#e6fff2;font:16px/1.5 system-ui,sans-serif}main{max-width:760px;margin:auto}.hero,section{background:#101c17;border:1px solid #244233;border-radius:18px;padding:clamp(16px,4vw,30px);margin-bottom:14px}.hero h1{color:#00ff88;margin-top:0;font-size:clamp(1.7rem,6vw,2.8rem)}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}.value{font-size:clamp(1.5rem,5vw,2.3rem);font-weight:800;color:#00ff88}.label{color:#a8c2b3}li{margin:.4rem 0}footer{color:#a8c2b3;font-size:.85rem}</style></head><body><main><header class="hero"><h1>Nitro Anime Analytics</h1><p>' + escapeHtml(el('personality-title').textContent) + ' — ' + escapeHtml(el('personality-desc').textContent) + '</p><p>Datum analize: ' + new Date().toLocaleDateString('hr-HR') + '</p></header><div class="stats"><section><div class="value">' + el('completed').textContent + '</div><div class="label">Završeno</div></section><section><div class="value">' + el('mean').textContent + '</div><div class="label">Tvoj prosjek</div></section><section><div class="value">' + el('eps').textContent + '</div><div class="label">Epizoda</div></section><section><div class="value">' + el('days').textContent + '</div><div class="label">Dana gledanja</div></section><section><div class="value">' + el('tens').textContent + '</div><div class="label">Ocjena 10/10</div></section></div>' + titles + '<footer>Generirano lokalno u Nitro Anime Analytics.</footer></main></body></html>';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([html], {type:'text/html'})); a.download = 'nitro_infographic.html'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+// reset
+el('resetBtn').onclick = () => location.reload();
+
+// PWA: Učitaj zadnju analizu
+el('loadLastAnalysisBtn').onclick = async () => {
+    const lastData = await loadAnalysis();
+    if (lastData) {
+        await go(lastData);
+        setStatus('Učitana posljednja spremljena analiza.', false);
+    } else {
+        setStatus('Nema spremljene analize za učitavanje.', true);
+    }
+};
+
+// --- INICIJALIZACIJA APLIKACIJE ---
+async function initApp() {
+    initializeFilters();
+    updateOnlineStatus();
+
+    // PWA: Registracija Service Workera - Dinamički scope
+    if ('serviceWorker' in navigator) {
+        const appBase = new URL('./', window.location.href);
+        const swUrl = new URL('sw.js', appBase);
+
+        navigator.serviceWorker.register(swUrl, { scope: appBase.pathname })
+            .then(reg => { console.log('SW registrovan. Scope:', reg.scope); })
+            .catch(err => console.error('SW registracija neuspješna:', err));
+    }
+
+    const lastData = await loadAnalysis();
+    const action = new URLSearchParams(window.location.search).get('action');
+    if (action === 'last' && lastData) {
+        await go(lastData);
+        setStatus('Učitana posljednja spremljena analiza.');
+        return;
+    }
+    if (action === 'new') {
+        el('drop-zone').classList.remove('hidden');
+        el('dashboard').classList.add('hidden');
+        el('offline-data-prompt').style.display = 'none';
+        setStatus('Odaberi novi MAL XML, CSV ili .xml.gz izvoz.');
+        return;
+    }
+    if (!isOnline && lastData) {
+        showOfflinePrompt();
+    } else if (isOnline && lastData) {
+        // Prikazi normalnu drop zonu, ali obavijesti da postoji stara analiza
+        setStatus('Spreman. Postoji spremljena analiza. Klikni na UČITAJ POSLJEDNJU ANALIZU u gornjem desnom kutu ako je Offline.', false);
+    } else {
+        setStatus('Spreman. Učitaj MAL XML/CSV ili .xml.gz.');
+    }
+}
+
+// small niceties: allow pressing Enter to open file dialog
+document.addEventListener('keydown', e => { if(e.key==='/' && !document.querySelector('input:focus')) { fileInput.click(); e.preventDefault(); } });
+
+
+document.addEventListener('DOMContentLoaded', initApp);
+
+// expose for debug
+window._nitro = { data, enriched, renderCharts };

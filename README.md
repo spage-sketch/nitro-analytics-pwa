@@ -17,7 +17,7 @@ Zatim otvori `http://localhost:8000/`.
 ## Uvoz i analiza
 
 - Podržani su MAL XML, CSV te komprimirani XML s nastavkom `.xml.gz` ako ga preglednik podržava.
-- Analiza, teme i AniList podaci spremaju se u `localStorage` trenutačnog preglednika i domene.
+- Analiza i AniList metapodaci spremaju se u IndexedDB preglednika; postojeća analiza iz `localStorage` automatski se prenosi pri prvom učitavanju. Tema ostaje u `localStorage`.
 - Izvezi JSON gumbom **EXPORT JSON**, a zatim ga vrati gumbom **OBNOVI JSON**; uvoz provjerava MAL ID-jeve i prijavljuje preskočene zapise.
 - **Shadow Fetch** AniListu šalje MAL ID-jeve; ručno povezivanje šalje naslove nepronađenih zapisa tek kad zatražiš pretragu. Kandidat se sprema nakon tvoje potvrde. Dohvaćaju se javni žanrovi, prosječna ocjena, oznake i podaci o formatu/sezoni.
 - Preporuke AniListu šalju samo odabrane žanrove iz ocijenjenih naslova; MAL ocjene i cijela lista ostaju u pregledniku.
@@ -27,7 +27,9 @@ Filteri po naslovu, statusu, godini na listi, godini izlaska, žanru, AniList oz
 
 ## Datoteke
 
-- `index.html` — aplikacija
+- `index.html` — HTML struktura aplikacije
+- `app.js` — logika i interakcije
+- `styles.css` — stilovi aplikacije
 - `manifest.json` — naziv, ikona i prečaci instalirane PWA
 - `sw.js` — offline predmemorija aplikacije i vanjskih biblioteka
 - `nitro-icon.svg` — ikona aplikacije
