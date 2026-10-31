@@ -37,3 +37,7 @@ Filteri po naslovu, statusu, godini na listi, godini izlaska, žanru, AniList oz
 ## Provjere
 
 Pokreni provjere naredbom node --test tests/*.test.js. GitHub Actions ih pokreće na push i pull request.
+
+## Objava
+
+GitHub Actions objavljuje statičke datoteke na GitHub Pages nakon uspješnih provjera na grani `main`. Za objavu u postavkama repozitorija **Settings → Pages → Build and deployment → Source** mora biti odabran **GitHub Actions**. Stranica je dostupna na <https://spage-sketch.github.io/nitro-analytics-pwa/>.
